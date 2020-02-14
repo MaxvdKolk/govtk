@@ -3,9 +3,8 @@ package vtu
 import (
 	"encoding/xml"
 	"fmt"
+	"io"
 	"os"
-	"strconv"
-	"strings"
 )
 
 /* todo
@@ -38,11 +37,8 @@ const (
 	RectilinearGrid  = "RectilinearGrid"
 	StructuredGrid   = "StructuredGrid"
 	UnstructuredGrid = "UnstructuredGrid"
-	PData            = "PointData"
-	CData            = "CellData"
-	FData            = "FieldData"
 	ascii            = "ascii"
-	binary           = "binary"
+	FormatBinary     = "binary"
 )
 
 // header of the vtu Files
@@ -51,9 +47,9 @@ type Header struct {
 	Type      string   `xml:"type,attr"`
 	Version   float64  `xml:"version,attr"`
 	ByteOrder string   `xml:"byte_order,attr"`
+	Format    string   `xml:"-"`
 	//HeaderType string   `xml:"header_type,attr"` // todo do is this req?
-	Grid   Grid
-	Format string
+	Grid Grid
 }
 
 // Construct new header describing the vtu file
@@ -70,6 +66,7 @@ func newHeader(t string, opts ...Option) *Header {
 	for _, opt := range opts {
 		opt(h)
 	}
+
 	return h
 }
 
@@ -82,6 +79,7 @@ type DArray struct {
 	NumberOfComponents int      `xml:"NumberOfComponents,attr,omitempty"`
 	NumberOfTuples     int      `xml:"NumberOfTuples,attr,omitempty"`
 	Data               string   `xml:",chardata"`
+	RawData            []byte   `xml:",chardata"`
 }
 
 // return new DArray
@@ -95,23 +93,13 @@ func NewDArray(Type, Name, Format string, NoC int, Data string) *DArray {
 	}
 }
 
-func IntArray(name, format string, n int, data []int) *DArray {
-	d := intToString(data, " ")
-	return NewDArray("UInt32", name, format, n, d)
-}
-
-func FloatArray(name, format string, n int, data []float64) *DArray {
-	d := floatToString(data, " ")
-	return NewDArray("Float64", name, format, n, d)
-}
-
 // data: image or unstructured
 type Grid struct {
 	XMLName xml.Name
-	Extent  string `xml:"WholeExtent,attr,omitempty"`
-	Origin  string `xml:"Origin,attr,omitempty"`
-	Spacing string `xml:"Spacing,attr,omitempty"`
-	Data    Array  `xml:"FieldData,omitempty"`
+	Extent  string    `xml:"WholeExtent,attr,omitempty"`
+	Origin  string    `xml:"Origin,attr,omitempty"`
+	Spacing string    `xml:"Spacing,attr,omitempty"`
+	Data    DataArray `xml:"FieldData,omitempty"`
 	Pieces  []Partition
 }
 
@@ -119,23 +107,15 @@ type Grid struct {
 // partition can be the complete, or a subset of, the mesh. The VTU docs
 // refer to a partition as a "Piece".
 type Partition struct {
-	XMLName        xml.Name `xml:"Piece"`
-	Extent         string   `xml:"Extent,attr,omitempty"`
-	NumberOfPoints int      `xml:"NumberOfPoints,attr"`
-	NumberOfCells  int      `xml:"NumberOfCells,attr"`
-	Points         Array    `xml:",omitempty"` // todo seems overly verbose?
-	Cells          Array    `xml:",omitempty"`
-	Coordinates    Array    `xml:",omitempty"`
-	PointData      Array    `xml:",omitempty"`
-	CellData       Array    `xml:",omitempty"`
-}
-
-// Array represents a set of data arrays, with a flexible name
-// by not specifying it, we can keep it variable
-// Array{XMLName: xml.Name{Local: "foo"}} to name it foo
-type Array struct {
-	XMLName xml.Name
-	Data    []*DArray // any number of data arrays should be possible
+	XMLName        xml.Name  `xml:"Piece"`
+	Extent         string    `xml:"Extent,attr,omitempty"`
+	NumberOfPoints int       `xml:"NumberOfPoints,attr"`
+	NumberOfCells  int       `xml:"NumberOfCells,attr"`
+	Points         DataArray `xml:",omitempty"` // todo seems overly verbose?
+	Cells          DataArray `xml:",omitempty"`
+	Coordinates    DataArray `xml:",omitempty"`
+	PointData      DataArray `xml:",omitempty"`
+	CellData       DataArray `xml:",omitempty"`
 }
 
 // Set applies a set of Options to the header
@@ -149,13 +129,15 @@ func (h *Header) Add(ops ...Option) {
 func Points(data []float64) Option {
 	return func(h *Header) {
 		lp := h.lastPiece()
-		d := &lp.Points
-		name := "Points"
-		if len(d.Data) > 0 {
+
+		if lp.Points != nil {
 			panic("points allready set")
 		}
+
+		lp.Points = NewArray(h.Format)
+		// todo enforce it fits?
 		lp.NumberOfPoints = len(data) / 3
-		d.Data = append(d.Data, FloatArray(name, h.Format, 3, data))
+		lp.Points.Floats("Points", 3, data)
 	}
 }
 
@@ -186,9 +168,7 @@ func Data(name string, data []float64) Option {
 		}
 
 		if len(data)%lp.NumberOfCells == 0 {
-			nc := len(data) / lp.NumberOfCells
-			cd := &lp.CellData
-			cd.Data = append(cd.Data, FloatArray(name, h.Format, nc, data))
+			h.cellData(name, data)
 			return
 		}
 	}
@@ -202,64 +182,52 @@ func PointData(name string, data []float64) Option {
 
 func CellData(name string, data []float64) Option {
 	return func(h *Header) {
-		lp := h.lastPiece()
-
-		if len(data)%lp.NumberOfCells > 0 {
-			panic("data does not distribute")
-		}
-		nc := len(data) / lp.NumberOfCells
-
-		cd := &lp.CellData
-		cd.Data = append(cd.Data, FloatArray(name, h.Format, nc, data))
+		h.cellData(name, data)
 	}
 }
 
 func Cells(conn [][]int) Option {
 	return func(h *Header) {
 		lp := h.lastPiece()
-		d := &lp.Cells
-		if len(d.Data) > 0 {
+
+		if lp.Cells != nil {
 			panic("connectivity already set")
 		}
 
 		lp.NumberOfCells = len(conn)
-		d.Data = append(d.Data, IntArray("connectivity", h.Format, 1, conn[0]))
-		d.Data = append(d.Data, IntArray("offsets", h.Format, 1, []int{len(conn[0])}))
-		d.Data = append(d.Data, IntArray("types", h.Format, 1, []int{10}))
 
+		lp.Cells = NewArray(h.Format)
+		lp.Cells.Ints("connectivity", 1, conn[0])
+		lp.Cells.Ints("offsets", 1, []int{len(conn[0])})
+		lp.Cells.Ints("types", 1, []int{10})
 	}
 }
 
 func FieldData(name string, data []float64) Option {
 	return func(h *Header) {
-		pd := &h.Grid.Data
-		tmpdata := floatToString(data, " ")
 
-		// todo fix this
-		tmp := &DArray{
-			Type:           "Float64", // data type
-			Name:           name,      // name of field
-			Format:         h.Format,  // ascii vs binary
-			NumberOfTuples: len(data), // number of components (x, y, z)
-			Data:           tmpdata,   // data converted to string
+		if h.Grid.Data == nil {
+			h.Grid.Data = NewFieldArray(h.Format)
 		}
 
-		pd.Data = append(pd.Data, tmp)
+		h.Grid.Data.Floats(name, len(data), data)
 	}
 }
 
 func Coordinates(x, y, z []float64) Option {
 	return func(h *Header) {
 		lp := h.lastPiece()
-		d := &lp.Coordinates
-		if len(d.Data) > 0 {
+
+		if lp.Coordinates != nil {
 			panic("Coordinates were already set")
 		}
+
 		lp.NumberOfPoints = len(x)
 
-		d.Data = append(d.Data, FloatArray("x_coordinates", h.Format, 1, x))
-		d.Data = append(d.Data, FloatArray("y_coordinates", h.Format, 1, y))
-		d.Data = append(d.Data, FloatArray("z_coordinates", h.Format, 1, z))
+		lp.Coordinates = NewArray(h.Format)
+		lp.Coordinates.Floats("x_coordinates", 1, x)
+		lp.Coordinates.Floats("y_coordinates", 1, y)
+		lp.Coordinates.Floats("z_coordinates", 1, z)
 	}
 }
 
@@ -269,6 +237,13 @@ type Option func(h *Header)
 func Ascii() Option {
 	return func(h *Header) {
 		h.Format = ascii
+	}
+}
+
+// The binary VTU format is actually base64 encoded to not break xml
+func Binary() Option {
+	return func(h *Header) {
+		h.Format = FormatBinary
 	}
 }
 
@@ -327,31 +302,50 @@ func Unstructured(opts ...Option) *Header {
 	return v
 }
 
-// todo change this to allow a writer interface?
-func (h *Header) Write(filename string) {
+// Save opens a file and writes the xml
+func (h *Header) Save(filename string) error {
 	f, err := os.Create(filename)
 	defer f.Close()
 	if err != nil {
-		panic(fmt.Sprintf("error %v", err))
+		return err
 	}
+	return h.Write(f)
+}
 
-	enc := xml.NewEncoder(f)
-	err = enc.Encode(h)
-	if err != nil {
-		panic(fmt.Sprintf("error %v", err))
-	}
+// Encodes the xml towards any io.Writer
+func (h *Header) Write(w io.Writer) error {
+	return xml.NewEncoder(w).Encode(h)
 }
 
 // Add data specified on points
 func (h *Header) pointData(name string, data []float64) {
 	lp := h.lastPiece()
+
+	if lp.PointData == nil {
+		lp.PointData = NewArray(h.Format)
+	}
+
 	if len(data)%lp.NumberOfPoints > 0 {
 		panic("data does not distribute")
 	}
+
 	nc := len(data) / lp.NumberOfPoints
-	pd := &lp.PointData
-	pd.Data = append(pd.Data, FloatArray(name, h.Format, nc, data))
-	return
+	lp.PointData.Floats(name, nc, data)
+}
+
+func (h *Header) cellData(name string, data []float64) {
+	lp := h.lastPiece()
+
+	if lp.CellData == nil {
+		lp.CellData = NewArray(h.Format)
+	}
+
+	if len(data)%lp.NumberOfCells > 0 {
+		panic("data does not distribute")
+	}
+
+	nc := len(data) / lp.NumberOfCells
+	lp.CellData.Floats(name, nc, data)
 }
 
 // Returns pointer to last piece in the mesh
@@ -371,63 +365,4 @@ func (h *Header) lastPiece() *Partition {
 	}
 
 	return &h.Grid.Pieces[len(h.Grid.Pieces)-1]
-}
-
-// custom marshaller? this would avoid pointers?
-// in this case, we dont worry about checking nil, just check lengths?
-func (a Array) MarshalXML(e *xml.Encoder, start xml.StartElement) (err error) {
-	if len(a.Data) == 0 {
-		return nil
-	}
-
-	err = e.EncodeToken(start)
-	if err != nil {
-		return
-	}
-
-	err = e.Encode(a.Data)
-	if err != nil {
-		return
-	}
-	return e.EncodeToken(xml.EndElement{Name: start.Name})
-}
-
-// not sure if i like this... maybe store just as ints?
-func stringToInts(s string) []int {
-	str := strings.Split(s, " ")
-	ints := make([]int, len(str), len(str))
-	for i := 0; i < len(str); i++ {
-		f, err := strconv.ParseInt(str[i], 10, 32)
-		if err != nil {
-			panic(fmt.Sprintf("%v", err))
-		}
-		ints[i] = int(f)
-	}
-	return ints
-}
-
-func floatToString(data []float64, sep string) string {
-	if len(data) == 0 {
-		panic("no data supplied to the VTU output")
-	}
-
-	s := make([]string, len(data))
-	for i, d := range data {
-		s[i] = fmt.Sprintf("%f", d)
-	}
-
-	return strings.Join(s, sep)
-}
-
-func intToString(data []int, sep string) string {
-	if len(data) == 0 {
-		panic("no data supplied")
-	}
-
-	s := make([]string, len(data))
-	for i, d := range data {
-		s[i] = strconv.Itoa(d)
-	}
-
-	return strings.Join(s, sep)
 }

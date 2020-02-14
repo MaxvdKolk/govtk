@@ -7,23 +7,18 @@ import (
 )
 
 /* todo
-- add scalar field
-- add vector field
-- add tensor ? field
-- add global comment/data
-- base64 encoding
-- pure binary encoding  --> this changes to the appended format tho...
-
-- These settings should be set with functions as options... just based on some
-  flags we can determine where to add the data to. The base64 encoding should
-  be trivial, i.e. just encode the string we get in place? The binary, needs
-  to ENFORCE the appending and we need to add the offsets somewhere?
-- Also, how does this work for multiple pieces?
+- store provided data not directly as strings; convert at moment of writing
+- tensor (?) field data
+- base64 encoding per xml piece
+- appended format
+- binary (raw) encoding in appended format
+- compression zlib for base64 and raw encoding
+- test formats
 */
 
 func TestImage(t *testing.T) {
 
-	nx, ny, nz := 30, 33, 30
+	nx, ny, nz := 3, 3, 3
 
 	coords := make([]float64, 0, 0)
 	xc := make([]float64, 0, 0)
@@ -35,6 +30,11 @@ func TestImage(t *testing.T) {
 				coords = append(coords, float64(i))
 				coords = append(coords, float64(j))
 				coords = append(coords, float64(k))
+
+				//coords = append(coords, float64(1.0))
+				//coords = append(coords, float64(1.0))
+				//coords = append(coords, float64(1.0))
+
 				xc = append(xc, float64(i))
 				yc = append(yc, float64(i))
 				zc = append(zc, float64(i))
@@ -46,23 +46,34 @@ func TestImage(t *testing.T) {
 	opts = append(opts, WholeExtent(0, nx, 0, ny, 0, nz))
 	opts = append(opts, Spacing(0.1, 0.1, 0.1))
 	opts = append(opts, Origin(0, 0, 0))
-	opts = append(opts, Ascii())
+
+	asc := append(opts, Ascii())
 
 	// image file
-	str := Image(opts...)
-	//str.Add(PointData("C", coords))
-	str.Add(Data("C", coords))
-	str.Write("im.vti")
+	str := Image(asc...)
+	str.Add(Data("C", coords), Data("B", coords))
+
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+
+	str.Save("im.vti")
+
+	bin := append(opts, Binary())
+	str = Image(bin...)
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	str.Add(Data("C", coords), Data("B", coords))
+	str.Save("bim.vti")
 
 	// rectilinear file
-	str = Rectilinear(WholeExtent(0, nx, 0, ny, 0, nz))
+	str = Rectilinear(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
 	str.Add(Coordinates(xc, yc, zc), PointData("C", coords))
-	str.Write("im.vtr")
+	str.Save("im.vtr")
 
 	// structured grid
-	str = Structured(WholeExtent(0, nx, 0, ny, 0, nz))
+	str = Structured(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
 	str.Add(Points(coords), PointData("C", coords))
-	str.Write("im.vts")
+	str.Save("im.vts")
 
 	t.Fail()
 }
@@ -70,7 +81,7 @@ func TestImage(t *testing.T) {
 func TestVTU(t *testing.T) {
 	coords := []float64{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0}
 
-	test := Unstructured()
+	test := Unstructured(Ascii())
 	test.Add(FieldData("F", []float64{1.0}))
 	test.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 
