@@ -22,30 +22,39 @@ type Arrayer interface {
 	Floats(name string, n int, data []float64) *DArray
 }
 
-// compressor for compression levels
-type Compressor interface {
-	Compress()
-}
-
 // produce a specific array matching the format
 // this probably needs to be attached to the header itself
-func createArray(format string, fieldData bool) DataArray {
+func createArray(format string, fieldData bool, compressor Compressor) DataArray {
+
+	var c Compressor
+	if compressor != nil {
+		c = compressor
+	} else {
+		c = &NoCompressor{}
+	}
+
 	switch format {
 	case ascii:
-		return &Array{Arrayer: Asciier{}, fieldData: fieldData}
+		return &Array{Arrayer: Asciier{},
+			fieldData: fieldData,
+		}
 	case FormatBinary:
-		return &Array{Arrayer: Base64er{}, fieldData: fieldData}
+		return &Array{Arrayer: Base64er{Compressor: c},
+			fieldData: fieldData,
+		}
 	default:
 		panic("not sure what data array to add")
 	}
 }
 
-func NewArray(format string) DataArray {
-	return createArray(format, false)
+// todo change these to provide the full header? Or just attach this routine
+// to the header itself, that would prevent passing all this stuff around
+func NewArray(format string, compressor Compressor) DataArray {
+	return createArray(format, false, compressor)
 }
 
-func NewFieldArray(format string) DataArray {
-	return createArray(format, true)
+func NewFieldArray(format string, compressor Compressor) DataArray {
+	return createArray(format, true, compressor)
 }
 
 // as we use the DataArray interface now, the Data []*DArray could be anything
@@ -108,7 +117,7 @@ func (b Base64er) Ints(name string, n int, data []int) *DArray {
 	}
 
 	// compress
-	// a.Compressor.Compress(&buf)
+	//b.Compressor.Compress(&buf, &buf)
 
 	// encode
 	d := base64.StdEncoding.EncodeToString(buf.Bytes())
@@ -117,30 +126,38 @@ func (b Base64er) Ints(name string, n int, data []int) *DArray {
 
 func (b Base64er) Floats(name string, n int, data []float64) *DArray {
 
-	var buf bytes.Buffer
+	var bdat bytes.Buffer
 
-	// size header as int32
-	binary.Write(&buf, binary.LittleEndian, int32(len(data)*8))
-
-	// convert data to bytes
 	for _, v := range data {
-		err := binary.Write(&buf, binary.LittleEndian, v)
+		err := binary.Write(&bdat, binary.LittleEndian, v)
 		if err != nil {
-			panic("error")
+			panic("error payload binary")
 		}
 	}
 
-	// compress
-	// a.Compressor.Compress(&buf)
-
-	// encode
-	d := base64.StdEncoding.EncodeToString(buf.Bytes())
+	payload := Payload{data: bdat.Bytes()}
+	b.Compressor.Compress(&payload)
+	d := b.Encode(&payload)
 	return NewDArray("Float64", name, FormatBinary, n, d)
 }
 
+// Encode encodes the payload to base64.
+func (b *Base64er) Encode(p *Payload) string {
+	var d string
+
+	// when compressed, header and data need to be encoded seperately
+	if p.compressed {
+		d += base64.StdEncoding.EncodeToString(p.Header())
+		d += base64.StdEncoding.EncodeToString(p.data)
+	} else {
+		d += base64.StdEncoding.EncodeToString(append(p.Header(), p.data...))
+	}
+	return d
+}
+
 type Binaryer struct {
-	Compressor Compressor
-	appending  bool
+	//Compressor Compressor
+	appending bool
 }
 
 func floatToString(data []float64, sep string) string {

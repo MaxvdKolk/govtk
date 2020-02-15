@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"os"
 	"testing"
+	//"compress/zlib"
 )
 
 /* todo
@@ -18,7 +19,7 @@ import (
 
 func TestImage(t *testing.T) {
 
-	nx, ny, nz := 3, 3, 3
+	nx, ny, nz := 100, 100, 100
 
 	coords := make([]float64, 0, 0)
 	xc := make([]float64, 0, 0)
@@ -58,7 +59,9 @@ func TestImage(t *testing.T) {
 
 	str.Save("im.vti")
 
-	bin := append(opts, Binary())
+	//bin := append(opts, Binary())
+	bin := append(opts, Binary(), Compressed())
+	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
 	str = Image(bin...)
 	str.Add(FieldData("F", []float64{1.0}))
 	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))

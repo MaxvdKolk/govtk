@@ -1,6 +1,7 @@
 package vtu
 
 import (
+	"compress/zlib"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -39,17 +40,20 @@ const (
 	UnstructuredGrid = "UnstructuredGrid"
 	ascii            = "ascii"
 	FormatBinary     = "binary"
+	ZlibCompressor   = "vtkZLibDataCompressor"
 )
 
 // header of the vtu Files
 type Header struct {
-	XMLName   xml.Name `xml:"VTKFile"`
-	Type      string   `xml:"type,attr"`
-	Version   float64  `xml:"version,attr"`
-	ByteOrder string   `xml:"byte_order,attr"`
-	Format    string   `xml:"-"`
-	//HeaderType string   `xml:"header_type,attr"` // todo do is this req?
-	Grid Grid
+	XMLName     xml.Name   `xml:"VTKFile"`
+	Type        string     `xml:"type,attr"`
+	Version     float64    `xml:"version,attr"`
+	ByteOrder   string     `xml:"byte_order,attr"`
+	Format      string     `xml:"-"`
+	HeaderType  string     `xml:"header_type,attr"` // todo do is this req?
+	Compression string     `xml:"compressor,attr"`
+	Compressor  Compressor `xml:"-"` // the method of data compression?
+	Grid        Grid
 }
 
 // Construct new header describing the vtu file
@@ -58,7 +62,8 @@ func newHeader(t string, opts ...Option) *Header {
 		Type:      t,
 		Version:   2.0,
 		ByteOrder: "LittleEndian",
-		//HeaderType: "Uint32",
+		//HeaderType: "UInt32",
+		//Compressor: "vtkZLibDataCompressor",
 		Grid: Grid{XMLName: xml.Name{Local: t}},
 	}
 
@@ -134,7 +139,7 @@ func Points(data []float64) Option {
 			panic("points allready set")
 		}
 
-		lp.Points = NewArray(h.Format)
+		lp.Points = NewArray(h.Format, h.Compressor)
 		// todo enforce it fits?
 		lp.NumberOfPoints = len(data) / 3
 		lp.Points.Floats("Points", 3, data)
@@ -196,7 +201,7 @@ func Cells(conn [][]int) Option {
 
 		lp.NumberOfCells = len(conn)
 
-		lp.Cells = NewArray(h.Format)
+		lp.Cells = NewArray(h.Format, h.Compressor)
 		lp.Cells.Ints("connectivity", 1, conn[0])
 		lp.Cells.Ints("offsets", 1, []int{len(conn[0])})
 		lp.Cells.Ints("types", 1, []int{10})
@@ -207,7 +212,7 @@ func FieldData(name string, data []float64) Option {
 	return func(h *Header) {
 
 		if h.Grid.Data == nil {
-			h.Grid.Data = NewFieldArray(h.Format)
+			h.Grid.Data = NewFieldArray(h.Format, h.Compressor)
 		}
 
 		h.Grid.Data.Floats(name, len(data), data)
@@ -224,7 +229,7 @@ func Coordinates(x, y, z []float64) Option {
 
 		lp.NumberOfPoints = len(x)
 
-		lp.Coordinates = NewArray(h.Format)
+		lp.Coordinates = NewArray(h.Format, h.Compressor)
 		lp.Coordinates.Floats("x_coordinates", 1, x)
 		lp.Coordinates.Floats("y_coordinates", 1, y)
 		lp.Coordinates.Floats("z_coordinates", 1, z)
@@ -244,6 +249,18 @@ func Ascii() Option {
 func Binary() Option {
 	return func(h *Header) {
 		h.Format = FormatBinary
+	}
+}
+
+func Compressed() Option {
+	return CompressedLevel(zlib.DefaultCompression)
+}
+
+func CompressedLevel(level int) Option {
+	return func(h *Header) {
+		h.HeaderType = "UInt32"
+		h.Compression = ZlibCompressor // todo update names
+		h.Compressor = &Zlib{level: level}
 	}
 }
 
@@ -322,7 +339,7 @@ func (h *Header) pointData(name string, data []float64) {
 	lp := h.lastPiece()
 
 	if lp.PointData == nil {
-		lp.PointData = NewArray(h.Format)
+		lp.PointData = NewArray(h.Format, h.Compressor)
 	}
 
 	if len(data)%lp.NumberOfPoints > 0 {
@@ -337,7 +354,7 @@ func (h *Header) cellData(name string, data []float64) {
 	lp := h.lastPiece()
 
 	if lp.CellData == nil {
-		lp.CellData = NewArray(h.Format)
+		lp.CellData = NewArray(h.Format, h.Compressor)
 	}
 
 	if len(data)%lp.NumberOfCells > 0 {
