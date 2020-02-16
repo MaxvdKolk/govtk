@@ -2,9 +2,10 @@ package vtu
 
 import (
 	"encoding/xml"
+	"fmt"
 	"os"
 	"testing"
-	//"compress/zlib"
+	//	"compress/zlib"
 )
 
 /* todo
@@ -19,7 +20,7 @@ import (
 
 func TestImage(t *testing.T) {
 
-	nx, ny, nz := 100, 100, 100
+	nx, ny, nz := 20, 20, 20
 
 	coords := make([]float64, 0, 0)
 	xc := make([]float64, 0, 0)
@@ -50,23 +51,52 @@ func TestImage(t *testing.T) {
 
 	asc := append(opts, Ascii())
 
+	fmt.Println("asci...")
 	// image file
 	str := Image(asc...)
+	//	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
 
-	str.Add(FieldData("F", []float64{1.0}))
-	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	//str.Add(FieldData("F", []float64{1.0}))
 
 	str.Save("im.vti")
+	fmt.Println("done asci...")
 
-	//bin := append(opts, Binary())
-	bin := append(opts, Binary(), Compressed())
+	//bin := append(opts, Binary(), CompressedLevel(zlib.BestCompression), Appended())
+	//bin := append(opts, Bin, Appended())ary(), Appended())
+	bin := append(opts, Raw(), Compressed())
+	//bin := append(opts, Binary(), Compressed())
 	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
+	fmt.Println("binary...")
 	str = Image(bin...)
 	str.Add(FieldData("F", []float64{1.0}))
 	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
 	str.Save("bim.vti")
+	fmt.Println("done binary...")
+
+	os.Exit(1)
+
+	//bin = append(opts, Binary())
+	bin = append(opts, Binary(), Compressed())
+	//bin := append(opts, Binary(), Appended())
+	//bin := append(opts, Binary(), Compressed())
+	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
+	str = Image(bin...)
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	str.Add(Data("C", coords), Data("B", coords))
+	str.Save("bim2.vti")
+
+	bin = append(opts, Raw(), Compressed())
+	//bin := append(opts, Binary(), Appended())
+	//bin := append(opts, Binary(), Compressed())
+	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
+	str = Image(bin...)
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	str.Add(Data("C", coords), Data("B", coords))
+	str.Save("bim3.vti")
 
 	// rectilinear file
 	str = Rectilinear(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
@@ -84,7 +114,7 @@ func TestImage(t *testing.T) {
 func TestVTU(t *testing.T) {
 	coords := []float64{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0}
 
-	test := Unstructured(Ascii())
+	test := Unstructured(Raw(), Compressed())
 	test.Add(FieldData("F", []float64{1.0}))
 	test.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 
@@ -107,6 +137,7 @@ func TestVTU(t *testing.T) {
 	enc := xml.NewEncoder(f)
 	err = enc.Encode(test)
 	if err != nil {
+		fmt.Println(err)
 		panic("error")
 	}
 

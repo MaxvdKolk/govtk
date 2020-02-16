@@ -39,21 +39,25 @@ const (
 	StructuredGrid   = "StructuredGrid"
 	UnstructuredGrid = "UnstructuredGrid"
 	ascii            = "ascii"
+	FormatAppended   = "appended"
 	FormatBinary     = "binary"
+	FormatRaw        = "raw"
 	ZlibCompressor   = "vtkZLibDataCompressor"
 )
 
 // header of the vtu Files
 type Header struct {
-	XMLName     xml.Name   `xml:"VTKFile"`
-	Type        string     `xml:"type,attr"`
-	Version     float64    `xml:"version,attr"`
-	ByteOrder   string     `xml:"byte_order,attr"`
-	Format      string     `xml:"-"`
-	HeaderType  string     `xml:"header_type,attr"` // todo do is this req?
-	Compression string     `xml:"compressor,attr"`
-	Compressor  Compressor `xml:"-"` // the method of data compression?
-	Grid        Grid
+	XMLName      xml.Name   `xml:"VTKFile"`
+	Type         string     `xml:"type,attr"`
+	Version      float64    `xml:"version,attr"`
+	ByteOrder    string     `xml:"byte_order,attr"`
+	Format       string     `xml:"-"`
+	HeaderType   string     `xml:"header_type,attr,omitempty"` // todo do is this req?
+	Compression  string     `xml:"compressor,attr,omitempty"`
+	Compressor   Compressor `xml:"-"` // the method of data compression?
+	Grid         Grid
+	Append       bool `xml:"-"`
+	AppendedData *DArray
 }
 
 // Construct new header describing the vtu file
@@ -62,9 +66,7 @@ func newHeader(t string, opts ...Option) *Header {
 		Type:      t,
 		Version:   2.0,
 		ByteOrder: "LittleEndian",
-		//HeaderType: "UInt32",
-		//Compressor: "vtkZLibDataCompressor",
-		Grid: Grid{XMLName: xml.Name{Local: t}},
+		Grid:      Grid{XMLName: xml.Name{Local: t}},
 	}
 
 	// apply all options
@@ -77,19 +79,23 @@ func newHeader(t string, opts ...Option) *Header {
 
 // DataArray is a container with names and properties regarding a set of data
 type DArray struct {
-	XMLName            xml.Name `xml:"DataArray"`
+	XMLName            xml.Name //`xml:"DataArray"`
 	Type               string   `xml:"type,attr,omitempty"`
 	Name               string   `xml:"Name,attr,omitempty"`
 	Format             string   `xml:"format,attr,omitempty"`
 	NumberOfComponents int      `xml:"NumberOfComponents,attr,omitempty"`
 	NumberOfTuples     int      `xml:"NumberOfTuples,attr,omitempty"`
+	Offset             string   `xml:"offset,attr,omitempty"`
 	Data               string   `xml:",chardata"`
-	RawData            []byte   `xml:",chardata"`
+	RawData            []byte   `xml:",innerxml"`
+	Encoding           string   `xml:"encoding,attr,omitempty"`
+	offset             int      `xml:"-"`
 }
 
 // return new DArray
 func NewDArray(Type, Name, Format string, NoC int, Data string) *DArray {
 	return &DArray{
+		XMLName:            xml.Name{Local: "DataArray"},
 		Type:               Type,   // data type
 		Name:               Name,   // name of field
 		Format:             Format, // ascii vs binary
@@ -123,6 +129,70 @@ type Partition struct {
 	CellData       DataArray `xml:",omitempty"`
 }
 
+func (h *Header) NewArray() DataArray {
+	return h.createArray(false)
+}
+
+func (h *Header) NewFieldArray() DataArray {
+	return h.createArray(true)
+}
+
+func (h *Header) createArray(fieldData bool) DataArray {
+
+	var a Appender
+
+	a = &Inline{}
+
+	// todo improve this stuf...
+	// ensure the storage is present
+	if h.Append {
+		if h.AppendedData == nil {
+			h.AppendedData = &DArray{XMLName: xml.Name{Local: "AppendedData"}}
+
+			if h.Format == FormatRaw {
+				h.AppendedData.Encoding = "raw"
+			} else {
+				h.AppendedData.Encoding = "base64"
+			}
+		}
+
+		a = &Appending{Array: h.AppendedData}
+	}
+
+	var c Compressor
+	if h.Compressor != nil {
+		c = h.Compressor
+	} else {
+		c = &NoCompressor{}
+	}
+
+	switch h.Format {
+	case ascii:
+		return &Array{
+			fieldData:  fieldData,
+			Compressor: c,
+			Appender:   &Inline{},
+			Encoder:    Asciier{},
+		}
+	case FormatBinary:
+		return &Array{
+			fieldData:  fieldData,
+			Compressor: c,
+			Appender:   a,
+			Encoder:    Base64er{},
+		}
+	case FormatRaw:
+		return &Array{
+			fieldData:  fieldData,
+			Compressor: c,
+			Appender:   a,
+			Encoder:    Binaryer{},
+		}
+	default:
+		panic("not sure what array to add")
+	}
+}
+
 // Set applies a set of Options to the header
 func (h *Header) Add(ops ...Option) {
 	for _, op := range ops {
@@ -139,8 +209,7 @@ func Points(data []float64) Option {
 			panic("points allready set")
 		}
 
-		lp.Points = NewArray(h.Format, h.Compressor)
-		// todo enforce it fits?
+		lp.Points = h.NewArray()
 		lp.NumberOfPoints = len(data) / 3
 		lp.Points.Floats("Points", 3, data)
 	}
@@ -201,7 +270,7 @@ func Cells(conn [][]int) Option {
 
 		lp.NumberOfCells = len(conn)
 
-		lp.Cells = NewArray(h.Format, h.Compressor)
+		lp.Cells = h.NewArray()
 		lp.Cells.Ints("connectivity", 1, conn[0])
 		lp.Cells.Ints("offsets", 1, []int{len(conn[0])})
 		lp.Cells.Ints("types", 1, []int{10})
@@ -212,7 +281,7 @@ func FieldData(name string, data []float64) Option {
 	return func(h *Header) {
 
 		if h.Grid.Data == nil {
-			h.Grid.Data = NewFieldArray(h.Format, h.Compressor)
+			h.Grid.Data = h.NewFieldArray()
 		}
 
 		h.Grid.Data.Floats(name, len(data), data)
@@ -229,7 +298,7 @@ func Coordinates(x, y, z []float64) Option {
 
 		lp.NumberOfPoints = len(x)
 
-		lp.Coordinates = NewArray(h.Format, h.Compressor)
+		lp.Coordinates = h.NewArray()
 		lp.Coordinates.Floats("x_coordinates", 1, x)
 		lp.Coordinates.Floats("y_coordinates", 1, y)
 		lp.Coordinates.Floats("z_coordinates", 1, z)
@@ -249,6 +318,21 @@ func Ascii() Option {
 func Binary() Option {
 	return func(h *Header) {
 		h.Format = FormatBinary
+	}
+}
+
+func Raw() Option {
+	return func(h *Header) {
+		h.Format = FormatRaw
+		h.Append = true
+		h.HeaderType = "UInt32" // combine this into an internal setting maybe?
+	}
+}
+
+func Appended() Option {
+	return func(h *Header) {
+		h.Append = true
+		h.HeaderType = "UInt32"
 	}
 }
 
@@ -339,7 +423,7 @@ func (h *Header) pointData(name string, data []float64) {
 	lp := h.lastPiece()
 
 	if lp.PointData == nil {
-		lp.PointData = NewArray(h.Format, h.Compressor)
+		lp.PointData = h.NewArray()
 	}
 
 	if len(data)%lp.NumberOfPoints > 0 {
@@ -354,7 +438,7 @@ func (h *Header) cellData(name string, data []float64) {
 	lp := h.lastPiece()
 
 	if lp.CellData == nil {
-		lp.CellData = NewArray(h.Format, h.Compressor)
+		lp.CellData = h.NewArray()
 	}
 
 	if len(data)%lp.NumberOfCells > 0 {
