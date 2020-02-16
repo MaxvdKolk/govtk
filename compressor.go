@@ -6,7 +6,10 @@ import (
 	"encoding/binary"
 )
 
-// apply compression to bytes
+// interface to compress a payload
+// todo the compressor does not require the full *Payload...
+// it should just compress the bytes. The payload is able to create
+// its own header
 type Compressor interface {
 	Compress(*Payload)
 }
@@ -15,7 +18,7 @@ type NoCompressor struct{}
 
 func (nc *NoCompressor) Compress(p *Payload) {
 	p.compressed = false
-	p.blocksize += int32(len(p.data))
+	p.blockSize += int32(len(p.data))
 }
 
 type Zlib struct {
@@ -23,11 +26,19 @@ type Zlib struct {
 }
 
 func (z *Zlib) Compress(p *Payload) {
-
+	// when compressed the header of the payload requires
+	// blocks, blocksize, lastblocksize, compressedblocksizes,  (add links)
+	// however, we compress each block individually, this seems to simplify
+	// as the header always is followed by a single block?
+	//
+	// header | data | header | data
+	//
+	// rather than header | data | data | data ?
 	p.blocks += 1
-	p.blocksize += int32(len(p.data))
-	p.lastblocksize = int32(len(p.data))
+	p.blockSize += int32(len(p.data))
+	p.lastBlockSize = int32(len(p.data))
 
+	// todo refactor?
 	var cb bytes.Buffer
 	writer, err := zlib.NewWriterLevel(&cb, zlib.DefaultCompression)
 	if err != nil {
@@ -37,62 +48,41 @@ func (z *Zlib) Compress(p *Payload) {
 	writer.Close()
 
 	p.compressed = true
-	p.compressedblocks = append(p.compressedblocks, int32(len(cb.Bytes())))
+	p.compressedBlockSize = int32(len(cb.Bytes()))
 
+	// replace original bytes by compressed bytes
 	p.data = cb.Bytes()
 }
 
-// representation of data structure -> on construction receives an encoder
-// for base64 this is the base64 encoder, while for binary this is just empty
-//
 // for appended data we need to append to this single payload continously?
 type Payload struct {
-	compressed       bool
-	blocks           int32
-	blocksize        int32
-	lastblocksize    int32
-	compressedblocks []int32
-	data             []byte
-	//    Compressor Compressor
-	//    Encoder
+	compressed          bool
+	blocks              int32
+	blockSize           int32
+	lastBlockSize       int32
+	compressedBlockSize int32
+	data                []byte
+}
+
+func (p *Payload) headerData() []int32 {
+	if p.compressed {
+		return []int32{p.blocks, p.blockSize, p.lastBlockSize, p.compressedBlockSize}
+	} else {
+		return []int32{p.blockSize}
+	}
 }
 
 // return the header: if compressed, return something else
 func (p *Payload) Header() []byte {
+
 	var header bytes.Buffer
 
-	if p.compressed {
-
-		// just a single block for now
-		err := binary.Write(&header, binary.LittleEndian, int32(p.blocks))
+	for _, v := range p.headerData() {
+		err := binary.Write(&header, binary.LittleEndian, v)
 		if err != nil {
 			panic("error")
 		}
-
-		err = binary.Write(&header, binary.LittleEndian, int32(p.blocksize))
-		if err != nil {
-			panic("error")
-		}
-
-		err = binary.Write(&header, binary.LittleEndian, int32(p.lastblocksize))
-		if err != nil {
-			panic("error")
-		}
-
-		// todo modify
-		err = binary.Write(&header, binary.LittleEndian, int32(p.compressedblocks[0]))
-		if err != nil {
-			panic("error")
-		}
-
-		return header.Bytes()
-
-	} else {
-		err := binary.Write(&header, binary.LittleEndian, int32(p.blocksize))
-		if err != nil {
-			panic("error")
-		}
-		return header.Bytes()
 	}
 
+	return header.Bytes()
 }
