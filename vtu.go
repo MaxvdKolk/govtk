@@ -413,8 +413,17 @@ func (h *Header) Save(filename string) error {
 	return h.Write(f)
 }
 
-// Encodes the xml towards any io.Writer
+// Encodes the xml towards a io.Writer. Writes a xml header (i.e.
+// xml.Header constant) to the buffer first for both ascii and base64 formats.
+// The header is omitted for FormatRaw as this is actually not compliant with
+// the xml standard.
 func (h *Header) Write(w io.Writer) error {
+	if h.Format != FormatRaw {
+		_, err := w.Write([]byte(xml.Header))
+		if err != nil {
+			return err
+		}
+	}
 	return xml.NewEncoder(w).Encode(h)
 }
 
