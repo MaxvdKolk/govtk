@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/xml"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -17,6 +18,7 @@ type DataArray interface {
 }
 
 // bit weird it has both functions to string and []byte while one is allowed?
+// maybe have String also be viable to just stringify itself?
 type Encoder interface {
 	Ints(data []int) *Payload
 	Floats(data []float64) *Payload
@@ -72,7 +74,7 @@ func (a Asciier) Ints(data []int) *Payload {
 		// the string representation
 		err := binary.Write(&buf, binary.LittleEndian, strconv.Itoa(v))
 		if err != nil {
-			panic("error")
+			log.Fatal(strconv.Itoa(v), err)
 		}
 
 		// the separator
@@ -88,7 +90,7 @@ func (a Asciier) Ints(data []int) *Payload {
 func (a Asciier) Floats(data []float64) *Payload {
 
 	var buf bytes.Buffer
-	for _, v := range data {
+	for i, v := range data {
 
 		// need to cast the strings to byte first
 		// todo check this statement
@@ -98,10 +100,12 @@ func (a Asciier) Floats(data []float64) *Payload {
 			panic("error")
 		}
 
-		// the separator
-		err = binary.Write(&buf, binary.LittleEndian, []byte(" "))
-		if err != nil {
-			panic("error")
+		// insert separator
+		if i < len(data)-1 {
+			err = binary.Write(&buf, binary.LittleEndian, []byte(" "))
+			if err != nil {
+				panic("error")
+			}
 		}
 	}
 
