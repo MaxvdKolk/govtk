@@ -45,13 +45,13 @@ func testAsciiFloats(pairs []pair, t *testing.T) {
 		pair := pairs[i]
 		pl := enc.Floats(pair.val)
 
-		if string(pl.data) != pair.exp {
-			t.Logf("got: '%v', want: '%v'", string(pl.data), pair.exp)
+		if string(pl.data.Bytes()) != pair.exp {
+			t.Logf("got: '%v', want: '%v'", string(pl.data.Bytes()), pair.exp)
 			t.Fail()
 		}
 
 		if enc.String(pl) != pair.exp {
-			t.Logf("payload conversion: '%v', want: '%v'", string(pl.data), pair.exp)
+			t.Logf("payload conversion: '%v', want: '%v'", string(pl.data.Bytes()), pair.exp)
 			t.Fail()
 		}
 	}

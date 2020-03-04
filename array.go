@@ -84,32 +84,30 @@ func (a Asciier) Ints(data []int) *Payload {
 		}
 	}
 
-	return &Payload{data: buf.Bytes()}
+	return &Payload{data: buf}
 }
 
 func (a Asciier) Floats(data []float64) *Payload {
-
-	var buf bytes.Buffer
+	p := new(Payload)
 	for i, v := range data {
-
 		// need to cast the strings to byte first
 		// todo check this statement
 		tmp := []byte(strconv.FormatFloat(v, 'f', 6, 32))
-		err := binary.Write(&buf, binary.LittleEndian, tmp)
+		err := binary.Write(&p.data, binary.LittleEndian, tmp)
 		if err != nil {
-			panic("error")
+			log.Fatal(err)
 		}
 
 		// insert separator
 		if i < len(data)-1 {
-			err = binary.Write(&buf, binary.LittleEndian, []byte(" "))
+			err = binary.Write(&p.data, binary.LittleEndian, []byte(" "))
 			if err != nil {
 				panic("error")
 			}
 		}
 	}
-
-	return &Payload{data: buf.Bytes()}
+	p.blockSize = int32(p.data.Len())
+	return p
 }
 
 func (a Asciier) Format() string {
@@ -117,7 +115,7 @@ func (a Asciier) Format() string {
 }
 
 func (a Asciier) String(p *Payload) string {
-	return string(p.data)
+	return string(p.data.Bytes())
 }
 
 func (a Asciier) Raw(p *Payload) []byte {
@@ -127,26 +125,27 @@ func (a Asciier) Raw(p *Payload) []byte {
 type Base64er struct{}
 
 func (b Base64er) Ints(data []int) *Payload {
-	var buf bytes.Buffer
+	p := new(Payload)
 	for _, v := range data {
-		err := binary.Write(&buf, binary.LittleEndian, int32(v))
+		err := binary.Write(&p.data, binary.LittleEndian, int32(v))
 		if err != nil {
-			panic("error payload binary")
+			log.Fatal(err)
 		}
 	}
-	return &Payload{data: buf.Bytes()}
+	p.blockSize = int32(p.data.Len())
+	return p
 }
 
 func (b Base64er) Floats(data []float64) *Payload {
-	var buf bytes.Buffer
+	p := new(Payload)
 	for _, v := range data {
-		err := binary.Write(&buf, binary.LittleEndian, v)
+		err := binary.Write(&p.data, binary.LittleEndian, v)
 		if err != nil {
-			panic("error payload binary")
+			log.Fatal(err)
 		}
 	}
-
-	return &Payload{data: buf.Bytes()}
+	p.blockSize = int32(p.data.Len())
+	return p
 }
 
 // Encode encodes the payload to base64.
@@ -157,12 +156,12 @@ func (b *Base64er) Encode(p *Payload) string {
 	// compressed: combine header and data after encoding
 	if p.compressed {
 		d += base64.StdEncoding.EncodeToString(p.Header())
-		d += base64.StdEncoding.EncodeToString(p.data)
+		d += base64.StdEncoding.EncodeToString(p.data.Bytes())
 		return d
 	}
 
 	// uncompressed: combine header and data before encoding
-	d += base64.StdEncoding.EncodeToString(append(p.Header(), p.data...))
+	d += base64.StdEncoding.EncodeToString(append(p.Header(), p.data.Bytes()...))
 	return d
 }
 
@@ -177,27 +176,27 @@ func (b Base64er) Format() string { return FormatBinary }
 type Binaryer struct{}
 
 func (b Binaryer) Ints(data []int) *Payload {
-	var buf bytes.Buffer
+	p := new(Payload)
 	for _, v := range data {
-		err := binary.Write(&buf, binary.LittleEndian, int32(v))
+		err := binary.Write(&p.data, binary.LittleEndian, int32(v))
 		if err != nil {
-			panic("error payload raw")
+			log.Fatal(err)
 		}
 	}
-
-	return &Payload{data: buf.Bytes()}
+	p.blockSize = int32(p.data.Len())
+	return p
 }
 
 func (b Binaryer) Floats(data []float64) *Payload {
-	var buf bytes.Buffer
+	p := new(Payload)
 	for _, v := range data {
-		err := binary.Write(&buf, binary.LittleEndian, v)
+		err := binary.Write(&p.data, binary.LittleEndian, v)
 		if err != nil {
-			panic("error payload raw")
+			log.Fatal(err)
 		}
 	}
-
-	return &Payload{data: buf.Bytes()}
+	p.blockSize = int32(p.data.Len())
+	return p
 }
 
 func (b Binaryer) Format() string {
@@ -209,7 +208,7 @@ func (b Binaryer) String(p *Payload) string {
 }
 
 func (b Binaryer) Raw(p *Payload) []byte {
-	return append(p.Header(), p.data...)
+	return append(p.Header(), p.data.Bytes()...)
 }
 
 type Inline struct{}

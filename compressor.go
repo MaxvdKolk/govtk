@@ -18,7 +18,7 @@ type NoCompressor struct{}
 
 func (nc *NoCompressor) Compress(p *Payload) {
 	p.compressed = false
-	p.blockSize += int32(len(p.data))
+	//p.blockSize += int32(len(p.data))
 }
 
 type Zlib struct {
@@ -34,9 +34,6 @@ func (z *Zlib) Compress(p *Payload) {
 	// header | data | header | data
 	//
 	// rather than header | data | data | data ?
-	p.blocks += 1
-	p.blockSize += int32(len(p.data))
-	p.lastBlockSize = int32(len(p.data))
 
 	// todo refactor?
 	var cb bytes.Buffer
@@ -44,29 +41,29 @@ func (z *Zlib) Compress(p *Payload) {
 	if err != nil {
 		panic("problem zlib compression")
 	}
-	writer.Write(p.data)
+	writer.Write(p.data.Bytes())
 	writer.Close()
 
 	p.compressed = true
 	p.compressedBlockSize = int32(len(cb.Bytes()))
 
 	// replace original bytes by compressed bytes
-	p.data = cb.Bytes()
+	p.data = cb
 }
 
 // for appended data we need to append to this single payload continously?
 type Payload struct {
 	compressed          bool
-	blocks              int32
+	blocks              int32 // TODO currently unsed, blocks always 1
 	blockSize           int32
-	lastBlockSize       int32
+	lastBlockSize       int32 // TODO currently unused, blockSize always last
 	compressedBlockSize int32
-	data                []byte
+	data                bytes.Buffer
 }
 
 func (p *Payload) headerData() []int32 {
 	if p.compressed {
-		return []int32{p.blocks, p.blockSize, p.lastBlockSize, p.compressedBlockSize}
+		return []int32{1, p.blockSize, p.blockSize, p.compressedBlockSize}
 	} else {
 		return []int32{p.blockSize}
 	}
