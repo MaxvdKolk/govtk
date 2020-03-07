@@ -30,3 +30,9 @@ func (p *Payload) compressed() bool {
 	}
 	return true
 }
+
+// Reset resets both byte slices of the payload.
+func (p *Payload) reset() {
+	p.head.Reset()
+	p.body.Reset()
+}
