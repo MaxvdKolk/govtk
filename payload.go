@@ -19,8 +19,7 @@ func NewPayload() *Payload {
 // setHeader sets the header buffer with the data's length in bytes.
 func (p *Payload) setHeader() error {
 	p.head.Reset()
-	err := binary.Write(p.head, binary.LittleEndian, int32(p.body.Len()))
-	return err
+	return binary.Write(p.head, binary.LittleEndian, int32(p.body.Len()))
 }
 
 // compressed returns true if the payload has been compressed.
