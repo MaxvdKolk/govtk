@@ -29,7 +29,7 @@ func noCompress(p *Payload) *Payload {
 }
 
 // Compress returns a compressed copy of the provided payload and updates
-// the payload's header
+// the payload's header.
 //
 // For compressed payloads the header is given by four int32 values
 // - number of blocks present (currently always == 1)
@@ -37,7 +37,6 @@ func noCompress(p *Payload) *Payload {
 // - number of bytes previous block (currently equal to current block)
 // - number of bytes compressed block
 func compress(p *Payload) *Payload {
-	// compressed payload
 	c := NewPayload()
 
 	// zlib writer
@@ -51,7 +50,10 @@ func compress(p *Payload) *Payload {
 	if err != nil {
 		log.Fatal(err)
 	}
-	writer.Close()
+
+	if err := writer.Close(); err != nil {
+		log.Fatal(err)
+	}
 
 	// write the header
 	header := []int32{1, int32(n), int32(n), int32(c.body.Len())}
@@ -63,4 +65,28 @@ func compress(p *Payload) *Payload {
 	}
 
 	return c
+}
+
+// Decompress returns a decompressed copy of the provided payload and updates
+// the payload's header.
+func decompress(p *Payload) *Payload {
+	d := NewPayload()
+
+	reader, err := zlib.NewReader(p.body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// decompress data
+	_, err = io.Copy(d.body, reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := reader.Close(); err != nil {
+		log.Fatal(err)
+	}
+
+	d.setHeader()
+	return d
 }
