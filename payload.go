@@ -24,6 +24,16 @@ func newPayload() *Payload {
 	return &Payload{head: new(bytes.Buffer), body: new(bytes.Buffer)}
 }
 
+// NewPayloadFromData returns a pointer to payload constructed for the
+// data interface{}. The header is set after filling, no matter if the
+// write operation failed. It is up to the caller to verify err == nil.
+func newPayloadFromData(data interface{}) (*Payload, error) {
+	p := newPayload()
+	err := binary.Write(p.body, binary.LittleEndian, data)
+	p.setHeader()
+	return p, err
+}
+
 // setHeader sets the header buffer with the data's length in bytes.
 func (p *Payload) setHeader() error {
 	p.head.Reset()
