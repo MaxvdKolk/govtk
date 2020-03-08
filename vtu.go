@@ -54,7 +54,7 @@ type Header struct {
 	Format       string     `xml:"-"`
 	HeaderType   string     `xml:"header_type,attr,omitempty"` // todo do is this req?
 	Compression  string     `xml:"compressor,attr,omitempty"`
-	Compressor   Compressor `xml:"-"` // the method of data compression?
+	compressor   compressor // compression method
 	Grid         Grid
 	Append       bool `xml:"-"`
 	AppendedData *DArray
@@ -86,14 +86,13 @@ type DArray struct {
 	NumberOfComponents int      `xml:"NumberOfComponents,attr,omitempty"`
 	NumberOfTuples     int      `xml:"NumberOfTuples,attr,omitempty"`
 	Offset             string   `xml:"offset,attr,omitempty"`
-	Data               string   `xml:",chardata"`
-	RawData            []byte   `xml:",innerxml"`
+	Data               []byte   `xml:",innerxml"`
 	Encoding           string   `xml:"encoding,attr,omitempty"`
-	offset             int      `xml:"-"`
+	offset             int
 }
 
 // return new DArray
-func NewDArray(Type, Name, Format string, NoC int, Data string) *DArray {
+func NewDArray(Type, Name, Format string, NoC int, Data []byte) *DArray {
 	return &DArray{
 		XMLName:            xml.Name{Local: "DataArray"},
 		Type:               Type,   // data type
@@ -159,32 +158,32 @@ func (h *Header) createArray(fieldData bool) DataArray {
 		a = &Appending{Array: h.AppendedData}
 	}
 
-	var c Compressor
-	if h.Compressor != nil {
-		c = h.Compressor
+	var c compressor
+	if h.compressor != nil {
+		c = h.compressor
 	} else {
-		c = &NoCompressor{}
+		c = noCompression{}
 	}
 
 	switch h.Format {
 	case ascii:
 		return &Array{
 			fieldData:  fieldData,
-			Compressor: c,
+			compressor: c,
 			Appender:   &Inline{},
 			Encoder:    Asciier{},
 		}
 	case FormatBinary:
 		return &Array{
 			fieldData:  fieldData,
-			Compressor: c,
+			compressor: c,
 			Appender:   a,
 			Encoder:    Base64er{},
 		}
 	case FormatRaw:
 		return &Array{
 			fieldData:  fieldData,
-			Compressor: c,
+			compressor: c,
 			Appender:   a,
 			Encoder:    Binaryer{},
 		}
@@ -344,7 +343,7 @@ func CompressedLevel(level int) Option {
 	return func(h *Header) {
 		h.HeaderType = "UInt32"
 		h.Compression = ZlibCompressor // todo update names
-		h.Compressor = &Zlib{level: level}
+		h.compressor = zlibCompression{}
 	}
 }
 

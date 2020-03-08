@@ -36,10 +36,10 @@ type Appender interface {
 type Array struct {
 	XMLName    xml.Name
 	Data       []*DArray
-	fieldData  bool                      // store as global field data on true
-	Appender   Appender                  `xml:"-"`
-	Encoder    Encoder                   `xml:"-"`
-	Compressor func(p *Payload) *Payload `xml:"-"`
+	fieldData  bool     // store as global field data on true
+	Appender   Appender `xml:"-"`
+	Encoder    Encoder  `xml:"-"`
+	compressor compressor
 }
 
 func (a *Array) Append(da *DArray) {
@@ -53,15 +53,13 @@ func (a *Array) Append(da *DArray) {
 
 func (a *Array) Ints(name string, n int, data []int) {
 	payload := a.Encoder.Ints(data)
-	//a.Compressor.Compress(payload)
-	payload = a.Compressor(payload)
+	payload = a.compressor.compress(payload)
 	a.Append(a.Appender.Append("UInt32", name, n, payload, a.Encoder))
 }
 
 func (a *Array) Floats(name string, n int, data []float64) {
 	payload := a.Encoder.Floats(data)
-	//a.Compressor.Compress(payload)
-	payload = a.Compressor(payload)
+	payload = a.compressor.compress(payload)
 	a.Append(a.Appender.Append("Float64", name, n, payload, a.Encoder))
 }
 
@@ -179,9 +177,11 @@ func (b Base64er) Raw(p *Payload) []byte {
 	}
 
 	if p.compressed() {
-		// header and body are separately encoded: close and
-		// open the writer to insert padding (4 bytes)
-		encoder.Close()
+		// header and body should be compressed separately
+		err := encoder.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
 		encoder = base64.NewEncoder(enc, data)
 	}
 
