@@ -170,22 +170,22 @@ func (h *Header) createArray(fieldData bool) DataArray {
 		return &Array{
 			fieldData:  fieldData,
 			compressor: c,
-			Appender:   &Inline{},
-			Encoder:    Asciier{},
+			appender:   &Inline{},
+			encoder:    Asciier{},
 		}
 	case FormatBinary:
 		return &Array{
 			fieldData:  fieldData,
 			compressor: c,
-			Appender:   a,
-			Encoder:    Base64er{},
+			appender:   a,
+			encoder:    Base64er{},
 		}
 	case FormatRaw:
 		return &Array{
 			fieldData:  fieldData,
 			compressor: c,
-			Appender:   a,
-			Encoder:    Binaryer{},
+			appender:   a,
+			encoder:    Binaryer{},
 		}
 	default:
 		panic("not sure what array to add")
@@ -210,7 +210,7 @@ func Points(data []float64) Option {
 
 		lp.Points = h.NewArray()
 		lp.NumberOfPoints = len(data) / 3
-		lp.Points.Floats("Points", 3, data)
+		lp.Points.add("Points", 3, data)
 	}
 }
 
@@ -270,9 +270,9 @@ func Cells(conn [][]int) Option {
 		lp.NumberOfCells = len(conn)
 
 		lp.Cells = h.NewArray()
-		lp.Cells.Ints("connectivity", 1, conn[0])
-		lp.Cells.Ints("offsets", 1, []int{len(conn[0])})
-		lp.Cells.Ints("types", 1, []int{10})
+		lp.Cells.add("connectivity", 1, conn[0])
+		lp.Cells.add("offsets", 1, []int{len(conn[0])})
+		lp.Cells.add("types", 1, []int{10})
 	}
 }
 
@@ -283,7 +283,7 @@ func FieldData(name string, data []float64) Option {
 			h.Grid.Data = h.NewFieldArray()
 		}
 
-		h.Grid.Data.Floats(name, len(data), data)
+		h.Grid.Data.add(name, len(data), data)
 	}
 }
 
@@ -298,9 +298,9 @@ func Coordinates(x, y, z []float64) Option {
 		lp.NumberOfPoints = len(x)
 
 		lp.Coordinates = h.NewArray()
-		lp.Coordinates.Floats("x_coordinates", 1, x)
-		lp.Coordinates.Floats("y_coordinates", 1, y)
-		lp.Coordinates.Floats("z_coordinates", 1, z)
+		lp.Coordinates.add("x_coordinates", 1, x)
+		lp.Coordinates.add("y_coordinates", 1, y)
+		lp.Coordinates.add("z_coordinates", 1, z)
 	}
 }
 
@@ -439,7 +439,7 @@ func (h *Header) pointData(name string, data []float64) {
 	}
 
 	nc := len(data) / lp.NumberOfPoints
-	lp.PointData.Floats(name, nc, data)
+	lp.PointData.add(name, nc, data)
 }
 
 func (h *Header) cellData(name string, data []float64) {
@@ -454,7 +454,7 @@ func (h *Header) cellData(name string, data []float64) {
 	}
 
 	nc := len(data) / lp.NumberOfCells
-	lp.CellData.Floats(name, nc, data)
+	lp.CellData.add(name, nc, data)
 }
 
 // Returns pointer to last piece in the mesh
