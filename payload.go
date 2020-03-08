@@ -19,7 +19,8 @@ type Payload struct {
 	body *bytes.Buffer
 }
 
-func NewPayload() *Payload {
+// NewPayload returns a pointer to a payload with empty buffers.
+func newPayload() *Payload {
 	return &Payload{head: new(bytes.Buffer), body: new(bytes.Buffer)}
 }
 
@@ -30,7 +31,7 @@ func (p *Payload) setHeader() error {
 }
 
 // compressed returns true if the payload has been compressed.
-func (p *Payload) compressed() bool {
+func (p *Payload) isCompressed() bool {
 	if p.head.Len() == 4 {
 		// a single int32 header implies no compression
 		return false

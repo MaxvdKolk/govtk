@@ -41,7 +41,7 @@ type zlibCompression struct{}
 // Compress returns a compressed copy of the provided payload and updates
 // the payload's header.
 func (z zlibCompression) compress(p *Payload) *Payload {
-	c := NewPayload()
+	c := newPayload()
 
 	// zlib writer
 	writer, err := zlib.NewWriterLevel(c.body, zlib.DefaultCompression)
@@ -74,7 +74,7 @@ func (z zlibCompression) compress(p *Payload) *Payload {
 // Decompress returns a decompressed copy of the provided payload and updates
 // the payload's header.
 func (z zlibCompression) decompress(p *Payload) *Payload {
-	d := NewPayload()
+	d := newPayload()
 
 	reader, err := zlib.NewReader(p.body)
 	if err != nil {

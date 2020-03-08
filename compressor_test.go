@@ -13,7 +13,7 @@ func TestNoCompressedHeader(t *testing.T) {
 	compressors := []compressor{noCompression{}}
 	for _, compressor := range compressors {
 		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
-			p := NewPayload()
+			p := newPayload()
 			c := compressor.compress(p)
 			p.setHeader()
 
@@ -22,7 +22,7 @@ func TestNoCompressedHeader(t *testing.T) {
 					4, c.head.Len())
 			}
 
-			if c.compressed() {
+			if c.isCompressed() {
 				t.Errorf("Should not be compressed")
 			}
 		})
@@ -40,7 +40,7 @@ func TestCompressedHeader(t *testing.T) {
 	for _, compressor := range compressors {
 		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
 
-			p := NewPayload()
+			p := newPayload()
 			c := compressor.compress(p)
 
 			// after compression header should contain 4x int32 as bytes
@@ -49,7 +49,7 @@ func TestCompressedHeader(t *testing.T) {
 			}
 
 			// payload recognise compression
-			if !c.compressed() {
+			if !c.isCompressed() {
 				t.Errorf("Does not detect compressed header.")
 			}
 		})
@@ -78,8 +78,8 @@ func TestCompressors(t *testing.T) {
 // TestCompressDecompress verifies payload after compressing, decompressing.
 func testCompressDecompress(cases [][]int, c compressor, t *testing.T) {
 
-	p := NewPayload()
-	r := NewPayload()
+	p := newPayload()
+	r := newPayload()
 
 	for _, vals := range cases {
 		p.reset()

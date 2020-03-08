@@ -2,9 +2,8 @@ package vtu
 
 import "testing"
 
-// basic payload functionality
-func TestSetHeader(t *testing.T) {
-	p := NewPayload()
+func TestNewPayload(t *testing.T) {
+	p := newPayload()
 	if p.head.Len() > 0 {
 		t.Errorf("New header is not empty, len: %v", p.head.Len())
 	}
