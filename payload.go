@@ -7,6 +7,13 @@ import (
 
 // A payload contains the data for a single dataarray in the vtk format.
 // The data is represented as a byte slice for the header and the body.
+//
+// For uncompressed payloads the header is a single int32.
+// For compressed payloads the header is a set of by four int32:
+// 	 number of blocks (currently always == 1)
+// 	 bytes current body
+// 	 bytes previous body (when num blocks == 1: equal to current block)
+// 	 bytes compressed block
 type Payload struct {
 	head *bytes.Buffer
 	body *bytes.Buffer

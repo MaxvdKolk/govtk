@@ -3,37 +3,85 @@ package vtu
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"testing"
 )
 
-func TestZlibHeader(t *testing.T) {
-	p := NewPayload()
-	c := compress(p)
+// assert no compression does not actually compress
+func TestNoCompressedHeader(t *testing.T) {
+	compressors := []compressor{noCompression{}}
+	for _, compressor := range compressors {
+		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
+			p := NewPayload()
+			c := compressor.compress(p)
+			p.setHeader()
 
-	// after compression header should contain 4x int32 as bytes
-	if c.head.Len() != 4*4 {
-		t.Errorf("Wrong length, exp: %v, got %v", 16, c.head.Len())
-	}
+			if c.head.Len() != 4 {
+				t.Errorf("Wrong header length, exp %v, got %v",
+					4, c.head.Len())
+			}
 
-	// payload recognise compression
-	if !c.compressed() {
-		t.Errorf("Does not detect compressed header.")
+			if c.compressed() {
+				t.Errorf("Should not be compressed")
+			}
+		})
 	}
 }
 
-func TestZlibCompressDecompress(t *testing.T) {
+// todo add test to verify if paraview is emtpy or not without a header
+// results in problems
 
+// verify compressors modify header to 4*int32
+func TestCompressedHeader(t *testing.T) {
+
+	compressors := []compressor{zlibCompression{}}
+
+	for _, compressor := range compressors {
+		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
+
+			p := NewPayload()
+			c := compressor.compress(p)
+
+			// after compression header should contain 4x int32 as bytes
+			if c.head.Len() != 4*4 {
+				t.Errorf("Wrong length, exp: %v, got %v", 16, c.head.Len())
+			}
+
+			// payload recognise compression
+			if !c.compressed() {
+				t.Errorf("Does not detect compressed header.")
+			}
+		})
+	}
+
+}
+
+// TestCompressors asserts content of payload remains equal for the
+// available structs satisfying the compressor interface.
+func TestCompressors(t *testing.T) {
 	ints := [][]int{
 		[]int{},
 		[]int{1},
 		[]int{1, 2},
 		[]int{1, 2, 3}}
 
+	compressors := []compressor{noCompression{}, zlibCompression{}}
+
+	for _, compressor := range compressors {
+		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
+			testCompressDecompress(ints, compressor, t)
+		})
+	}
+}
+
+// TestCompressDecompress verifies payload after compressing, decompressing.
+func testCompressDecompress(cases [][]int, c compressor, t *testing.T) {
+
 	p := NewPayload()
 	r := NewPayload()
 
-	for _, vals := range ints {
+	for _, vals := range cases {
 		p.reset()
 		r.reset()
 
@@ -41,6 +89,7 @@ func TestZlibCompressDecompress(t *testing.T) {
 			t.Errorf("Failed to reset payload.")
 		}
 
+		// setup payload and reference payload
 		for _, v := range vals {
 			wr := io.MultiWriter(p.body, r.body)
 			err := binary.Write(wr, binary.LittleEndian, int32(v))
@@ -52,7 +101,7 @@ func TestZlibCompressDecompress(t *testing.T) {
 		r.setHeader()
 
 		// compress and decompress
-		d := decompress(compress(p))
+		d := c.decompress(c.compress(p))
 
 		if d.head.Len() == 0 {
 			t.Errorf("Empty header after decompressing.")
@@ -73,7 +122,7 @@ func TestZlibCompressDecompress(t *testing.T) {
 		}
 
 		if !bytes.Equal(r.body.Bytes(), d.body.Bytes()) {
-			t.Errorf("Decompressed data is not the same")
+			t.Errorf("Unequal body content")
 		}
 	}
 }

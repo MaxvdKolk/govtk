@@ -7,36 +7,40 @@ import (
 	"log"
 )
 
-// interface to compress a payload
-// todo the compressor does not require the full *Payload...
-// it should just compress the bytes. The payload is able to create
-// its own header
-// todo: add interface
-/*
-
+// The compressor interface requires the ability to compress and
+// decompress a payload.
 type compressor interface {
 	compress(p *Payload) *Payload
 	decompress(p *Payload) *Payload
 }
 
-*/
+// Satifies the compressor iterface, without applying any (de)compression.
+type noCompression struct{}
 
-type Compressor func(p *Payload) *Payload
-
-// noCompress returns the payload without any compression
-func noCompress(p *Payload) *Payload {
+// Compress returns the payload without any compression
+func (nc noCompression) compress(p *Payload) *Payload {
+	if p.head.Len() == 0 {
+		// insert header if not set
+		p.setHeader()
+	}
 	return p
 }
 
+// Decompress returns the payload without any decompression
+func (nc noCompression) decompress(p *Payload) *Payload {
+	return p
+}
+
+func (nc noCompression) String() string {
+	return `Compressor: no compression`
+}
+
+// Satisfies the compressor interface using compress/zlib for (de)compression.
+type zlibCompression struct{}
+
 // Compress returns a compressed copy of the provided payload and updates
 // the payload's header.
-//
-// For compressed payloads the header is given by four int32 values
-// - number of blocks present (currently always == 1)
-// - number of bytes of current block
-// - number of bytes previous block (currently equal to current block)
-// - number of bytes compressed block
-func compress(p *Payload) *Payload {
+func (z zlibCompression) compress(p *Payload) *Payload {
 	c := NewPayload()
 
 	// zlib writer
@@ -69,7 +73,7 @@ func compress(p *Payload) *Payload {
 
 // Decompress returns a decompressed copy of the provided payload and updates
 // the payload's header.
-func decompress(p *Payload) *Payload {
+func (z zlibCompression) decompress(p *Payload) *Payload {
 	d := NewPayload()
 
 	reader, err := zlib.NewReader(p.body)
@@ -89,4 +93,8 @@ func decompress(p *Payload) *Payload {
 
 	d.setHeader()
 	return d
+}
+
+func (zc zlibCompression) String() string {
+	return `Compressor: compress/zlib`
 }
