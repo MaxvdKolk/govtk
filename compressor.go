@@ -4,31 +4,30 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"io"
-	"log"
 )
 
 // The compressor interface requires the ability to compress and
 // decompress a payload.
 type compressor interface {
-	compress(p *Payload) *Payload
-	decompress(p *Payload) *Payload
+	compress(p *Payload) (*Payload, error)
+	decompress(p *Payload) (*Payload, error)
 }
 
 // Satifies the compressor iterface, without applying any (de)compression.
 type noCompression struct{}
 
 // Compress returns the payload without any compression
-func (nc noCompression) compress(p *Payload) *Payload {
+func (nc noCompression) compress(p *Payload) (*Payload, error) {
 	if p.head.Len() == 0 {
 		// insert header if not set
 		p.setHeader()
 	}
-	return p
+	return p, nil
 }
 
 // Decompress returns the payload without any decompression
-func (nc noCompression) decompress(p *Payload) *Payload {
-	return p
+func (nc noCompression) decompress(p *Payload) (*Payload, error) {
+	return p, nil
 }
 
 func (nc noCompression) String() string {
@@ -40,23 +39,23 @@ type zlibCompression struct{}
 
 // Compress returns a compressed copy of the provided payload and updates
 // the payload's header.
-func (z zlibCompression) compress(p *Payload) *Payload {
+func (z zlibCompression) compress(p *Payload) (*Payload, error) {
 	c := newPayload()
 
 	// zlib writer
 	writer, err := zlib.NewWriterLevel(c.body, zlib.DefaultCompression)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	// compress data and capture uncompressed payload's size
 	n, err := io.Copy(writer, p.body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	if err := writer.Close(); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	// write the header
@@ -64,35 +63,35 @@ func (z zlibCompression) compress(p *Payload) *Payload {
 	for _, val := range header {
 		err := binary.Write(c.head, binary.LittleEndian, val)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 	}
 
-	return c
+	return c, nil
 }
 
 // Decompress returns a decompressed copy of the provided payload and updates
 // the payload's header.
-func (z zlibCompression) decompress(p *Payload) *Payload {
+func (z zlibCompression) decompress(p *Payload) (*Payload, error) {
 	d := newPayload()
 
 	reader, err := zlib.NewReader(p.body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	// decompress data
 	_, err = io.Copy(d.body, reader)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	if err := reader.Close(); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	d.setHeader()
-	return d
+	return d, nil
 }
 
 func (zc zlibCompression) String() string {

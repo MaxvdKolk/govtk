@@ -14,7 +14,12 @@ func TestNoCompressedHeader(t *testing.T) {
 	for _, compressor := range compressors {
 		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
 			p := newPayload()
-			c := compressor.compress(p)
+
+			c, err := compressor.compress(p)
+			if err != nil {
+				t.Errorf("Compress error %v", err)
+			}
+
 			p.setHeader()
 
 			if c.head.Len() != 4 {
@@ -41,7 +46,10 @@ func TestCompressedHeader(t *testing.T) {
 		t.Run(fmt.Sprintf("%v", compressor), func(t *testing.T) {
 
 			p := newPayload()
-			c := compressor.compress(p)
+			c, err := compressor.compress(p)
+			if err != nil {
+				t.Errorf("Compress error %v", err)
+			}
 
 			// after compression header should contain 4x int32 as bytes
 			if c.head.Len() != 4*4 {
@@ -101,7 +109,15 @@ func testCompressDecompress(cases [][]int, c compressor, t *testing.T) {
 		r.setHeader()
 
 		// compress and decompress
-		d := c.decompress(c.compress(p))
+		p, err := c.compress(p)
+		if err != nil {
+			t.Errorf("Compress error %v", err)
+
+		}
+		d, err := c.decompress(p)
+		if err != nil {
+			t.Errorf("Decompress error %v", err)
+		}
 
 		if d.head.Len() == 0 {
 			t.Errorf("Empty header after decompressing.")

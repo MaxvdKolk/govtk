@@ -139,7 +139,10 @@ func TestEncodeBinary(t *testing.T) {
 
 	for _, c := range compressors {
 		for _, p := range pairs {
-			pl := c.compress(enc.binarise(p.val))
+			pl, err := c.compress(enc.binarise(p.val))
+			if err != nil {
+				t.Errorf("Compress error %v", err)
+			}
 			got := enc.encode(pl)
 			exp := append(pl.head.Bytes(), pl.body.Bytes()...)
 
@@ -158,7 +161,11 @@ func TestEncodeBase64(t *testing.T) {
 
 	c = noCompression{}
 	for _, p := range pairs {
-		pl := c.compress(enc.binarise(p.val))
+		pl, err := c.compress(enc.binarise(p.val))
+		if err != nil {
+			t.Errorf("Compress error %v", err)
+		}
+
 		got := enc.encode(pl)
 
 		if !bytes.Equal(got, p.b64) {
@@ -169,7 +176,11 @@ func TestEncodeBase64(t *testing.T) {
 
 	c = zlibCompression{}
 	for _, p := range pairs {
-		pl := c.compress(enc.binarise(p.val))
+		pl, err := c.compress(enc.binarise(p.val))
+		if err != nil {
+			t.Errorf("Compress error %v", err)
+		}
+
 		got := enc.encode(pl)
 
 		if !bytes.Equal(got, p.b64c) {

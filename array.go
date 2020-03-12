@@ -3,6 +3,7 @@ package vtu
 import (
 	"encoding/xml"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -95,9 +96,15 @@ func (da *DataArray) dataType(data interface{}) string {
 // Add adds data to the data array. The data can be stored inline or
 // appended to a single storage
 func (da *DataArray) add(name string, n int, data interface{}) {
-	// encode, compress
+	// encode
 	payload := da.encoder.binarise(data)
-	payload = da.compressor.compress(payload)
+
+	// compress
+	payload, err := da.compressor.compress(payload)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	bytes := da.encoder.encode(payload) // error check here
 
 	// add err check
