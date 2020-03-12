@@ -18,13 +18,13 @@ type DataArray struct {
 	// A collection of data sets within this XML element.
 	Data []*DArray
 
-	// appendedData holds a pointer to an external DArray. This allows us
+	// appended holds a pointer to an external DArray. This allows us
 	// to write appended data formats that do not store the actual data
 	// inline of the DataArray XML element. However, these attach the
 	// data to a single, external DArray. The []*DArray will only hold
 	// an offset towards the starting point of its data within the
-	// externa, appendedData DArray.
-	appendedData *DArray
+	// external, appended DArray.
+	appended *DArray
 
 	// fieldData is true when the to be stored data is intended as
 	// fieldData, i.e. global data to the XML VTK format. This could hold
@@ -115,7 +115,7 @@ func (da *DataArray) add(name string, n int, data interface{}) {
 	}
 
 	// inline: save data and append
-	if da.appendedData == nil {
+	if da.appended == nil {
 		arr.Data = bytes
 		da.Data = append(da.Data, arr)
 		return
@@ -124,16 +124,16 @@ func (da *DataArray) add(name string, n int, data interface{}) {
 	format = FormatAppended
 
 	// appended data is required to start with underscore ("_")
-	if len(da.appendedData.Data) == 0 {
-		da.appendedData.Data = []byte("_")
+	if len(da.appended.Data) == 0 {
+		da.appended.Data = []byte("_")
 	}
 
 	// set offset: subtract 1 to correct for underscore
 	arr.Offset = new(int)
-	*arr.Offset = len(da.appendedData.Data) - 1
+	*arr.Offset = len(da.appended.Data) - 1
 
 	// store data, append array
-	da.appendedData.Data = append(da.appendedData.Data, bytes...)
+	da.appended.Data = append(da.appended.Data, bytes...)
 	da.Data = append(da.Data, arr)
 }
 

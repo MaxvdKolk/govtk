@@ -47,17 +47,17 @@ const (
 
 // header of the vtu Files
 type Header struct {
-	XMLName      xml.Name   `xml:"VTKFile"`
-	Type         string     `xml:"type,attr"`
-	Version      float64    `xml:"version,attr"`
-	ByteOrder    string     `xml:"byte_order,attr"`
-	Format       string     `xml:"-"`
-	HeaderType   string     `xml:"header_type,attr,omitempty"` // todo do is this req?
-	Compression  string     `xml:"compressor,attr,omitempty"`
-	compressor   compressor // compression method
-	Grid         Grid
-	Append       bool `xml:"-"`
-	AppendedData *DArray
+	XMLName     xml.Name   `xml:"VTKFile"`
+	Type        string     `xml:"type,attr"`
+	Version     float64    `xml:"version,attr"`
+	ByteOrder   string     `xml:"byte_order,attr"`
+	Format      string     `xml:"-"`
+	HeaderType  string     `xml:"header_type,attr,omitempty"` // todo do is this req?
+	Compression string     `xml:"compressor,attr,omitempty"`
+	compressor  compressor // compression method
+	Grid        Grid
+	Append      bool `xml:"-"`
+	Appended    *DArray
 }
 
 // Construct new header describing the vtu file
@@ -115,16 +115,16 @@ func (h *Header) createArray(fieldData bool) *DataArray {
 	da := &DataArray{}
 
 	if h.Append {
-		if h.AppendedData == nil {
-			name := xml.Name{Local: "AppendedData"}
+		if h.Appended == nil {
+			name := xml.Name{Local: "Appended"}
 			enc := "base64"
 			if h.Format == FormatRaw {
 				enc = "raw"
 			}
-			h.AppendedData = &DArray{XMLName: name, Encoding: enc}
+			h.Appended = &DArray{XMLName: name, Encoding: enc}
 		}
 
-		da.appendedData = h.AppendedData
+		da.appended = h.Appended
 	}
 
 	if h.compressor != nil {
