@@ -7,90 +7,134 @@ import (
 	"strings"
 )
 
-type DataArray interface {
-	Append(*DArray)
-	add(name string, n int, data interface{})
-}
+// DataArray represent shte inner data containers of the VTK XML structure.
+// The format allows for multiple of these DataArrays to be present, e.g. to
+// represent PointData, CellData, etc. The DataArray might contain multiple
+// fields, implemented by the DArray struct.
+type DataArray struct {
+	// Name of the XML element, e.g. PointData, CellData, etc.
+	XMLName xml.Name
 
-type Appender interface {
-	Append(Type, name string, n int, p *Payload, enc encoder) *DArray
-}
+	// A collection of data sets within this XML element.
+	Data []*DArray
 
-// as we use the DataArray interface now, the Data []*DArray could be anything
-// that could be something with string data, but also something with raw data?
-type Array struct {
-	XMLName    xml.Name
-	Data       []*DArray
-	fieldData  bool     // store as global field data on true
-	appender   Appender `xml:"-"`
-	encoder    encoder
+	// appendedData holds a pointer to an external DArray. This allows us
+	// to write appended data formats that do not store the actual data
+	// inline of the DataArray XML element. However, these attach the
+	// data to a single, external DArray. The []*DArray will only hold
+	// an offset towards the starting point of its data within the
+	// externa, appendedData DArray.
+	appendedData *DArray
+
+	// fieldData is true when the to be stored data is intended as
+	// fieldData, i.e. global data to the XML VTK format. This could hold
+	// time steps or other generic data that is not represent at cells
+	// or points.
+	fieldData bool
+
+	// Encoder holds an encoder interface, which encodes the provided
+	// data towards Ascii, Binary, or Raw formats.
+	encoder encoder
+
+	// The compressor holds an compressor interface, which allows to
+	// compress the provided data before writing to Binary or Raw formats.
 	compressor compressor
 }
 
-func (a *Array) Append(da *DArray) {
-	if a.fieldData {
-		// requires "NumberOfTuples" rather then "Components"
-		da.NumberOfTuples = da.NumberOfComponents
-		da.NumberOfComponents = 0
-	}
-	a.Data = append(a.Data, da)
+// DArray represent the innermost DataArray element containing various \
+// properties of the data, and the data itself.
+type DArray struct {
+	XMLName xml.Name
+	Type    string `xml:"type,attr,omitempty"`
+	Name    string `xml:"Name,attr,omitempty"`
+	Format  string `xml:"format,attr,omitempty"`
+
+	// DataArray typically requires to specifuy NumberOfComponents,
+	// however, when writing fieldData (global data) the format requires
+	// to specify NumberOfTuples instead.
+	NumberOfComponents int `xml:"NumberOfComponents,attr,omitempty"`
+	NumberOfTuples     int `xml:"NumberOfTuples,attr,omitempty"`
+
+	// The actual data to be stored, always represent as a set of bytes
+	Data []byte `xml:",innerxml"`
+
+	// Encoding is only required for Raw values
+	Encoding string `xml:"encoding,attr,omitempty"`
+
+	// Offset holds a pointer to int, as we want to omit these values for
+	// any DArray that does not require offset, while we do not want to
+	// consider Offset = 0 as an empty value. Thus, by making this a
+	// pointer, the xml encoding only considers it empty when equal to nil.
+	Offset *int `xml:"offset,attr,omitempty"`
 }
 
-func (a *Array) add(name string, n int, data interface{}) {
-	payload := a.encoder.binarise(data)
-	payload = a.compressor.compress(payload)
+// Provides a new DArray with properties set except the data fields
+func NewDArray(xmlName, dtype, name, format string) *DArray {
+	return &DArray{
+		XMLName: xml.Name{Local: xmlName},
+		Type:    dtype,
+		Name:    name,
+		Format:  format,
+	}
+}
 
-	var format string
-
+// dataType tries to extract the data type, e.g. uint32, float64, etc., from
+// the emtpy interface.
+func (da *DataArray) dataType(data interface{}) string {
 	switch data.(type) {
 	case []int:
-		format = "UInt32"
+		return "UInt32"
 	case []float64:
-		format = "Float64"
+		return "Float64"
 	}
 
-	a.Append(a.appender.Append(format, name, n, payload, a.encoder))
+	// todo add err test
+	return ""
 }
 
-type Inline struct{}
+// Add adds data to the data array. The data can be stored inline or
+// appended to a single storage
+func (da *DataArray) add(name string, n int, data interface{}) {
+	// encode, compress
+	payload := da.encoder.binarise(data)
+	payload = da.compressor.compress(payload)
+	bytes := da.encoder.encode(payload) // error check here
 
-func (i *Inline) Append(Type, name string, n int, p *Payload, enc encoder) *DArray {
-	return &DArray{
-		XMLName:            xml.Name{Local: "DataArray"},
-		Type:               Type,
-		Name:               name,
-		Format:             enc.format(),
-		NumberOfComponents: n,
-		Data:               enc.encode(p),
-	}
-}
+	// add err check
+	dtype := da.dataType(data)
+	format := da.encoder.format()
 
-type Appending struct {
-	Array *DArray // pointer to the external appending array
-}
+	// get a new data array
+	arr := NewDArray("DataArray", dtype, name, format)
 
-func (a *Appending) Append(Type, name string, n int, p *Payload, enc encoder) *DArray {
-
-	// appended data need to start with a single underscore
-	if len(a.Array.Data) == 0 {
-		a.Array.Data = []byte("_")
+	// set components
+	if da.fieldData {
+		arr.NumberOfTuples = n
+	} else {
+		arr.NumberOfComponents = n
 	}
 
-	// store offset in DArray
-	da := &DArray{
-		XMLName:            xml.Name{Local: "DataArray"},
-		Type:               Type,
-		Name:               name,
-		Format:             FormatAppended,
-		NumberOfComponents: n,
-		Offset:             strconv.Itoa(a.Array.offset),
+	// inline: save data and append
+	if da.appendedData == nil {
+		arr.Data = bytes
+		da.Data = append(da.Data, arr)
+		return
 	}
 
-	// append new data bytes
-	d := enc.encode(p)
-	a.Array.Data = append(a.Array.Data, d...)
-	a.Array.offset += len(d)
-	return da
+	format = FormatAppended
+
+	// appended data is required to start with underscore ("_")
+	if len(da.appendedData.Data) == 0 {
+		da.appendedData.Data = []byte("_")
+	}
+
+	// set offset: subtract 1 to correct for underscore
+	arr.Offset = new(int)
+	*arr.Offset = len(da.appendedData.Data) - 1
+
+	// store data, append array
+	da.appendedData.Data = append(da.appendedData.Data, bytes...)
+	da.Data = append(da.Data, arr)
 }
 
 // not sure if i like this... maybe store just as ints?

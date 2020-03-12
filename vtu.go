@@ -77,39 +77,13 @@ func newHeader(t string, opts ...Option) *Header {
 	return h
 }
 
-// DataArray is a container with names and properties regarding a set of data
-type DArray struct {
-	XMLName            xml.Name //`xml:"DataArray"`
-	Type               string   `xml:"type,attr,omitempty"`
-	Name               string   `xml:"Name,attr,omitempty"`
-	Format             string   `xml:"format,attr,omitempty"`
-	NumberOfComponents int      `xml:"NumberOfComponents,attr,omitempty"`
-	NumberOfTuples     int      `xml:"NumberOfTuples,attr,omitempty"`
-	Offset             string   `xml:"offset,attr,omitempty"`
-	Data               []byte   `xml:",innerxml"`
-	Encoding           string   `xml:"encoding,attr,omitempty"`
-	offset             int
-}
-
-// return new DArray
-func NewDArray(Type, Name, Format string, NoC int, Data []byte) *DArray {
-	return &DArray{
-		XMLName:            xml.Name{Local: "DataArray"},
-		Type:               Type,   // data type
-		Name:               Name,   // name of field
-		Format:             Format, // ascii vs binary
-		NumberOfComponents: NoC,    // number of components (x, y, z)
-		Data:               Data,   // data converted to string
-	}
-}
-
 // data: image or unstructured
 type Grid struct {
 	XMLName xml.Name
-	Extent  string    `xml:"WholeExtent,attr,omitempty"`
-	Origin  string    `xml:"Origin,attr,omitempty"`
-	Spacing string    `xml:"Spacing,attr,omitempty"`
-	Data    DataArray `xml:"FieldData,omitempty"`
+	Extent  string     `xml:"WholeExtent,attr,omitempty"`
+	Origin  string     `xml:"Origin,attr,omitempty"`
+	Spacing string     `xml:"Spacing,attr,omitempty"`
+	Data    *DataArray `xml:"FieldData,omitempty"`
 	Pieces  []Partition
 }
 
@@ -117,79 +91,64 @@ type Grid struct {
 // partition can be the complete, or a subset of, the mesh. The VTU docs
 // refer to a partition as a "Piece".
 type Partition struct {
-	XMLName        xml.Name  `xml:"Piece"`
-	Extent         string    `xml:"Extent,attr,omitempty"`
-	NumberOfPoints int       `xml:"NumberOfPoints,attr"`
-	NumberOfCells  int       `xml:"NumberOfCells,attr"`
-	Points         DataArray `xml:",omitempty"` // todo seems overly verbose?
-	Cells          DataArray `xml:",omitempty"`
-	Coordinates    DataArray `xml:",omitempty"`
-	PointData      DataArray `xml:",omitempty"`
-	CellData       DataArray `xml:",omitempty"`
+	XMLName        xml.Name   `xml:"Piece"`
+	Extent         string     `xml:"Extent,attr,omitempty"`
+	NumberOfPoints int        `xml:"NumberOfPoints,attr"`
+	NumberOfCells  int        `xml:"NumberOfCells,attr"`
+	Points         *DataArray `xml:",omitempty"` // todo seems overly verbose?
+	Cells          *DataArray `xml:",omitempty"`
+	Coordinates    *DataArray `xml:",omitempty"`
+	PointData      *DataArray `xml:",omitempty"`
+	CellData       *DataArray `xml:",omitempty"`
 }
 
-func (h *Header) NewArray() DataArray {
+func (h *Header) NewArray() *DataArray {
 	return h.createArray(false)
 }
 
-func (h *Header) NewFieldArray() DataArray {
+func (h *Header) NewFieldArray() *DataArray {
 	return h.createArray(true)
 }
 
-func (h *Header) createArray(fieldData bool) DataArray {
+func (h *Header) createArray(fieldData bool) *DataArray {
 
-	var a Appender
+	da := &DataArray{}
 
-	a = &Inline{}
-
-	// todo improve this stuf...
-	// ensure the storage is present
 	if h.Append {
 		if h.AppendedData == nil {
-			h.AppendedData = &DArray{XMLName: xml.Name{Local: "AppendedData"}}
-
+			name := xml.Name{Local: "AppendedData"}
+			enc := "base64"
 			if h.Format == FormatRaw {
-				h.AppendedData.Encoding = "raw"
-			} else {
-				h.AppendedData.Encoding = "base64"
+				enc = "raw"
 			}
+			h.AppendedData = &DArray{XMLName: name, Encoding: enc}
 		}
 
-		a = &Appending{Array: h.AppendedData}
+		da.appendedData = h.AppendedData
 	}
 
-	var c compressor
 	if h.compressor != nil {
-		c = h.compressor
+		da.compressor = h.compressor
 	} else {
-		c = noCompression{}
+		da.compressor = noCompression{}
 	}
 
+	da.fieldData = fieldData
+	var enc encoder
 	switch h.Format {
 	case ascii:
-		return &Array{
-			fieldData:  fieldData,
-			compressor: c,
-			appender:   &Inline{},
-			encoder:    Asciier{},
-		}
+		enc = Asciier{}
 	case FormatBinary:
-		return &Array{
-			fieldData:  fieldData,
-			compressor: c,
-			appender:   a,
-			encoder:    Base64er{},
-		}
+		enc = Base64er{}
 	case FormatRaw:
-		return &Array{
-			fieldData:  fieldData,
-			compressor: c,
-			appender:   a,
-			encoder:    Binaryer{},
-		}
+		enc = Binaryer{}
 	default:
 		panic("not sure what array to add")
 	}
+
+	da.encoder = enc
+
+	return da
 }
 
 // Set applies a set of Options to the header
@@ -204,7 +163,8 @@ func Points(data []float64) Option {
 	return func(h *Header) {
 		lp := h.lastPiece()
 
-		if lp.Points != nil {
+		//if lp.Points != nil {
+		if len(lp.Points.Data) != 0 {
 			panic("points allready set")
 		}
 
@@ -263,7 +223,7 @@ func Cells(conn [][]int) Option {
 	return func(h *Header) {
 		lp := h.lastPiece()
 
-		if lp.Cells != nil {
+		if len(lp.Cells.Data) != 0 {
 			panic("connectivity already set")
 		}
 
@@ -291,7 +251,7 @@ func Coordinates(x, y, z []float64) Option {
 	return func(h *Header) {
 		lp := h.lastPiece()
 
-		if lp.Coordinates != nil {
+		if len(lp.Coordinates.Data) != 0 {
 			panic("Coordinates were already set")
 		}
 
