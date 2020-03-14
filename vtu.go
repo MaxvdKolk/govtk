@@ -60,6 +60,9 @@ type Header struct {
 	Appended    *DArray
 }
 
+// header options
+type Option func(h *Header) error
+
 // Construct new header describing the vtu file
 func newHeader(t string, opts ...Option) *Header {
 	h := &Header{
@@ -160,138 +163,165 @@ func (h *Header) Add(ops ...Option) {
 
 // Add points
 func Points(data []float64) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		lp := h.lastPiece()
 
-		//if lp.Points != nil {
-		if len(lp.Points.Data) != 0 {
-			panic("points allready set")
+		if lp.Points != nil {
+			return fmt.Errorf("Points allready set")
 		}
 
 		lp.Points = h.NewArray()
 		lp.NumberOfPoints = len(data) / 3
-		lp.Points.add("Points", 3, data)
+		return lp.Points.add("Points", 3, data)
 	}
 }
 
 func Piece(opts ...func(p *Partition)) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		p := Partition{}
 		for _, opt := range opts {
 			opt(&p)
 		}
 		h.Grid.Pieces = append(h.Grid.Pieces, p)
+		return nil
 	}
 }
 
 // todo add some private functions that add the actual data, these
 // functions can then just be wrappers around the internal api calls?
 func Data(name string, data []float64) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 
 		lp := h.lastPiece()
 
 		if lp.NumberOfPoints == lp.NumberOfCells {
-			panic("num cells == num points, cannot infer")
+			return fmt.Errorf("num cells == num points, cannot infer")
 		}
 
 		if len(data)%lp.NumberOfPoints == 0 {
-			h.pointData(name, data)
-			return
+			return h.pointData(name, data)
 		}
 
 		if len(data)%lp.NumberOfCells == 0 {
-			h.cellData(name, data)
-			return
+			return h.cellData(name, data)
 		}
+
+		return nil
 	}
 }
 
 func PointData(name string, data []float64) Option {
-	return func(h *Header) {
-		h.pointData(name, data)
+	return func(h *Header) error {
+		return h.pointData(name, data)
 	}
 }
 
 func CellData(name string, data []float64) Option {
-	return func(h *Header) {
-		h.cellData(name, data)
+	return func(h *Header) error {
+		return h.cellData(name, data)
 	}
 }
 
 func Cells(conn [][]int) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		lp := h.lastPiece()
 
 		if len(lp.Cells.Data) != 0 {
-			panic("connectivity already set")
+			return fmt.Errorf("Connectivity already set")
 		}
 
 		lp.NumberOfCells = len(conn)
-
 		lp.Cells = h.NewArray()
-		lp.Cells.add("connectivity", 1, conn[0])
-		lp.Cells.add("offsets", 1, []int{len(conn[0])})
-		lp.Cells.add("types", 1, []int{10})
+
+		err := lp.Cells.add("connectivity", 1, conn[0])
+		if err != nil {
+			return err
+		}
+
+		err = lp.Cells.add("offsets", 1, []int{len(conn[0])})
+		if err != nil {
+			return err
+		}
+
+		err = lp.Cells.add("types", 1, []int{10})
+		if err != nil {
+			return err
+		}
+
+		return nil
 	}
 }
 
 func FieldData(name string, data []float64) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 
 		if h.Grid.Data == nil {
 			h.Grid.Data = h.NewFieldArray()
 		}
 
-		h.Grid.Data.add(name, len(data), data)
+		return h.Grid.Data.add(name, len(data), data)
 	}
 }
 
 func Coordinates(x, y, z []float64) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		lp := h.lastPiece()
 
 		if len(lp.Coordinates.Data) != 0 {
-			panic("Coordinates were already set")
+			return fmt.Errorf("Coordinates already set")
 		}
 
 		lp.NumberOfPoints = len(x)
-
 		lp.Coordinates = h.NewArray()
-		lp.Coordinates.add("x_coordinates", 1, x)
-		lp.Coordinates.add("y_coordinates", 1, y)
-		lp.Coordinates.add("z_coordinates", 1, z)
+
+		err := lp.Coordinates.add("x_coordinates", 1, x)
+		if err != nil {
+			return err
+		}
+
+		err = lp.Coordinates.add("y_coordinates", 1, y)
+		if err != nil {
+			return err
+		}
+
+		err = lp.Coordinates.add("z_coordinates", 1, z)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	}
 }
 
-// header options
-type Option func(h *Header)
-
 func Ascii() Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.Format = ascii
+		return nil
 	}
 }
 
 // The binary VTU format is actually base64 encoded to not break xml
 func Binary() Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.Format = FormatBinary
+		return nil
 	}
 }
 
 func Raw() Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.Format = FormatRaw
 		h.Append = true
 		h.HeaderType = "UInt32" // combine this into an internal setting maybe?
+		return nil
 	}
 }
 
 func Appended() Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.Append = true
 		h.HeaderType = "UInt32"
+		return nil
 	}
 }
 
@@ -300,31 +330,35 @@ func Compressed() Option {
 }
 
 func CompressedLevel(level int) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.HeaderType = "UInt32"
 		h.Compression = ZlibCompressor // todo update names
 		h.compressor = zlibCompression{}
+		return nil
 	}
 }
 
 func WholeExtent(x0, x1, y0, y1, z0, z1 int) Option {
-	f := func(h *Header) {
+	f := func(h *Header) error {
 		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)
 		h.Grid.Extent = str
 		//h.Grid.Extent = []int{x0, x1, y0, y1, z0, z1}
+		return nil
 	}
 	return f
 }
 
 func Origin(x, y, z float64) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.Grid.Origin = fmt.Sprintf("%f %f %f", x, y, z)
+		return nil
 	}
 }
 
 func Spacing(dx, dy, dz float64) Option {
-	return func(h *Header) {
+	return func(h *Header) error {
 		h.Grid.Spacing = fmt.Sprintf("%f %f %f", dx, dy, dz)
+		return nil
 	}
 }
 
@@ -387,7 +421,7 @@ func (h *Header) Write(w io.Writer) error {
 }
 
 // Add data specified on points
-func (h *Header) pointData(name string, data []float64) {
+func (h *Header) pointData(name string, data []float64) error {
 	lp := h.lastPiece()
 
 	if lp.PointData == nil {
@@ -395,14 +429,14 @@ func (h *Header) pointData(name string, data []float64) {
 	}
 
 	if len(data)%lp.NumberOfPoints > 0 {
-		panic("data does not distribute")
+		return fmt.Errorf("Data does not distribute over points")
 	}
 
 	nc := len(data) / lp.NumberOfPoints
-	lp.PointData.add(name, nc, data)
+	return lp.PointData.add(name, nc, data)
 }
 
-func (h *Header) cellData(name string, data []float64) {
+func (h *Header) cellData(name string, data []float64) error {
 	lp := h.lastPiece()
 
 	if lp.CellData == nil {
@@ -410,11 +444,11 @@ func (h *Header) cellData(name string, data []float64) {
 	}
 
 	if len(data)%lp.NumberOfCells > 0 {
-		panic("data does not distribute")
+		return fmt.Errorf("Data does not distribute over cells")
 	}
 
 	nc := len(data) / lp.NumberOfCells
-	lp.CellData.add(name, nc, data)
+	return lp.CellData.add(name, nc, data)
 }
 
 // Returns pointer to last piece in the mesh

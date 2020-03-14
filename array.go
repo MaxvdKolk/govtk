@@ -3,7 +3,6 @@ package vtu
 import (
 	"encoding/xml"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 )
@@ -95,19 +94,19 @@ func (da *DataArray) dataType(data interface{}) string {
 
 // Add adds data to the data array. The data can be stored inline or
 // appended to a single storage
-func (da *DataArray) add(name string, n int, data interface{}) {
+func (da *DataArray) add(name string, n int, data interface{}) error {
 	// encode
 	payload := da.encoder.binarise(data)
 
 	// compress
 	payload, err := da.compressor.compress(payload)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	bytes, err := da.encoder.encode(payload) // error check here
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// add err check
@@ -128,7 +127,7 @@ func (da *DataArray) add(name string, n int, data interface{}) {
 	if da.appended == nil {
 		arr.Data = bytes
 		da.Data = append(da.Data, arr)
-		return
+		return nil
 	}
 
 	format = FormatAppended
@@ -145,6 +144,7 @@ func (da *DataArray) add(name string, n int, data interface{}) {
 	// store data, append array
 	da.appended.Data = append(da.appended.Data, bytes...)
 	da.Data = append(da.Data, arr)
+	return nil
 }
 
 // not sure if i like this... maybe store just as ints?
