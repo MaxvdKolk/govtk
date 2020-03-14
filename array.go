@@ -105,7 +105,10 @@ func (da *DataArray) add(name string, n int, data interface{}) {
 		log.Fatal(err)
 	}
 
-	bytes := da.encoder.encode(payload) // error check here
+	bytes, err := da.encoder.encode(payload) // error check here
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// add err check
 	dtype := da.dataType(data)

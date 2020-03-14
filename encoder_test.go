@@ -124,7 +124,10 @@ func TestEncodeAscii(t *testing.T) {
 	enc := Asciier{}
 	for _, pair := range pairs {
 		p := enc.binarise(pair.val)
-		b := enc.encode(p)
+		b, err := enc.encode(p)
+		if err != nil {
+			t.Errorf("Encoder error %v", err)
+		}
 		if !bytes.Equal(pair.str, b) {
 			t.Errorf("%T provides wrongly encoded payload", enc)
 		}
@@ -143,7 +146,10 @@ func TestEncodeBinary(t *testing.T) {
 			if err != nil {
 				t.Errorf("Compress error %v", err)
 			}
-			got := enc.encode(pl)
+			got, err := enc.encode(pl)
+			if err != nil {
+				t.Errorf("Encoder error %v", err)
+			}
 			exp := append(pl.head.Bytes(), pl.body.Bytes()...)
 
 			if !bytes.Equal(got, exp) {
@@ -166,7 +172,10 @@ func TestEncodeBase64(t *testing.T) {
 			t.Errorf("Compress error %v", err)
 		}
 
-		got := enc.encode(pl)
+		got, err := enc.encode(pl)
+		if err != nil {
+			t.Errorf("Encoder error %v", err)
+		}
 
 		if !bytes.Equal(got, p.b64) {
 			t.Errorf("Wrongly uncompressed base64 encoding: got: %v exp: %v",
@@ -181,7 +190,10 @@ func TestEncodeBase64(t *testing.T) {
 			t.Errorf("Compress error %v", err)
 		}
 
-		got := enc.encode(pl)
+		got, err := enc.encode(pl)
+		if err != nil {
+			t.Errorf("Encoder error %v", err)
+		}
 
 		if !bytes.Equal(got, p.b64c) {
 			t.Errorf("Wrongly uncompressed base64 encoding: got: %v exp: %v",

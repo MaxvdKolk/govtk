@@ -13,7 +13,7 @@ import (
 // towards a payload. Additionally, the encoder encodes the payload's data.
 type encoder interface {
 	binarise(data interface{}) *Payload
-	encode(*Payload) []byte
+	encode(*Payload) ([]byte, error)
 	//decode([]byte) *Payload // todo
 	format() string
 }
@@ -72,8 +72,8 @@ func (a Asciier) binarise(data interface{}) *Payload {
 
 // Encode encodes the payload to []byte.
 // For ascii format only the body of the payload is required.
-func (a Asciier) encode(p *Payload) []byte {
-	return p.body.Bytes()
+func (a Asciier) encode(p *Payload) ([]byte, error) {
+	return p.body.Bytes(), nil
 }
 
 func (a Asciier) format() string { return ascii }
@@ -89,32 +89,35 @@ func (b Base64er) binarise(data interface{}) *Payload {
 	return p
 }
 
-func (b Base64er) encode(p *Payload) []byte {
+func (b Base64er) encode(p *Payload) ([]byte, error) {
 	enc := base64.StdEncoding
 	data := new(bytes.Buffer)
 	encoder := base64.NewEncoder(enc, data)
 
 	// write header
 	if _, err := encoder.Write(p.head.Bytes()); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
+	// compress header and body separately
 	if p.isCompressed() {
-		// header and body should be compressed separately
-		err := encoder.Close()
-		if err != nil {
-			log.Fatal(err)
+		if err := encoder.Close(); err != nil {
+			return nil, err
 		}
 		encoder = base64.NewEncoder(enc, data)
 	}
 
 	// write body
 	if _, err := encoder.Write(p.body.Bytes()); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	encoder.Close()
 
-	return data.Bytes()
+	// close body
+	if err := encoder.Close(); err != nil {
+		return nil, err
+	}
+
+	return data.Bytes(), nil
 }
 
 func (b Base64er) format() string { return FormatBinary }
@@ -130,8 +133,8 @@ func (b Binaryer) binarise(data interface{}) *Payload {
 	return p
 }
 
-func (b Binaryer) encode(p *Payload) []byte {
-	return append(p.head.Bytes(), p.body.Bytes()...)
+func (b Binaryer) encode(p *Payload) ([]byte, error) {
+	return append(p.head.Bytes(), p.body.Bytes()...), nil
 }
 
 func (b Binaryer) format() string { return FormatRaw }
