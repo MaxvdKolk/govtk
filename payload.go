@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 )
 
-// A payload contains the data for a single dataarray in the vtk format.
+// Payload contains the data for a single dataarray in the vtk format.
 // The data is represented as a byte slice for the header and the body.
 //
 // For uncompressed payloads the header is a single int32.
