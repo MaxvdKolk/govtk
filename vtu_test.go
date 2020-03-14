@@ -18,6 +18,57 @@ import (
 - test formats
 */
 
+func TestAppendedData(t *testing.T) {
+	vtu, _ := Image(Appended())
+
+	if vtu.Appended == nil {
+		t.Errorf("Nil pointer found at appended data.")
+	}
+	if vtu.Appended.XMLName.Local != "AppendedData" {
+		t.Errorf("Wrong xml name for appended data array.")
+	}
+
+	// ascii + appended are not allowed together
+	vtu, err := Image(Ascii(), Appended())
+	if err == nil {
+		t.Errorf("Appended and ascii should not be possible.")
+	}
+	vtu, err = Image(Appended(), Ascii())
+	if err == nil {
+		t.Errorf("Appended and ascii should not be possible.")
+	}
+
+	vtu, _ = Image(Raw())
+	if vtu.Appended.Encoding != "raw" {
+		t.Errorf("Wrong appended data encoding: got %v exp %v",
+			vtu.Appended.Encoding, "raw")
+	}
+
+	vtu, _ = Image(Appended(), Raw())
+	if vtu.Appended.Encoding != "raw" {
+		t.Errorf("Wrong appended data encoding: got %v exp %v",
+			vtu.Appended.Encoding, "raw")
+	}
+
+	vtu, _ = Image(Raw(), Appended())
+	if vtu.Appended.Encoding != "raw" {
+		t.Errorf("Wrong appended data encoding: got %v exp %v",
+			vtu.Appended.Encoding, "raw")
+	}
+
+	vtu, _ = Image(Appended(), Binary())
+	if vtu.Appended.Encoding != "base64" {
+		t.Errorf("Wrong appended data encoding: got %v exp %v",
+			vtu.Appended.Encoding, "base64")
+	}
+
+	vtu, _ = Image(Binary(), Appended())
+	if vtu.Appended.Encoding != "base64" {
+		t.Errorf("Wrong appended data encoding: got %v exp %v",
+			vtu.Appended.Encoding, "base64")
+	}
+}
+
 func TestImage(t *testing.T) {
 
 	nx, ny, nz := 20, 20, 20
