@@ -33,30 +33,45 @@ information to files...
 //	16: 23,
 //}
 
+// we could make a type vtktype string?
 const (
+	// VTK XML types.
 	ImageData        = "ImageData"
 	RectilinearGrid  = "RectilinearGrid"
 	StructuredGrid   = "StructuredGrid"
 	UnstructuredGrid = "UnstructuredGrid"
-	FormatAscii      = "ascii"
-	FormatAppended   = "appended"
-	FormatBinary     = "binary"
-	FormatRaw        = "raw"
-	ZlibCompressor   = "vtkZLibDataCompressor"
+
+	// Data format representations
+	FormatAscii    = "ascii"
+	FormatBinary   = "binary"
+	FormatRaw      = "raw"
+	FormatAppended = "appended"
+
+	// Methods of encoding binary data in the VTK
+	// Note: EncodingRaw breaks XML standards.
+	EncodingRaw    = "raw"
+	EncodingBase64 = "base64"
+
+	// Identifier for zlib compressed data in VTK XML
+	ZlibCompressor = "vtkZLibDataCompressor"
 )
 
 // header of the vtu Files
 type Header struct {
-	XMLName     xml.Name   `xml:"VTKFile"`
-	Type        string     `xml:"type,attr"`
-	Version     float64    `xml:"version,attr"`
-	ByteOrder   string     `xml:"byte_order,attr"`
-	Format      string     `xml:"-"`
-	HeaderType  string     `xml:"header_type,attr,omitempty"` // todo do is this req?
-	Compression string     `xml:"compressor,attr,omitempty"`
-	compressor  compressor // compression method
+	XMLName     xml.Name `xml:"VTKFile"`
+	Type        string   `xml:"type,attr"`
+	Version     float64  `xml:"version,attr"`
+	ByteOrder   string   `xml:"byte_order,attr"`
+	HeaderType  string   `xml:"header_type,attr,omitempty"` // todo do is this req?
+	Compression string   `xml:"compressor,attr,omitempty"`
 	Grid        Grid
 	Appended    *DArray
+
+	format     string
+	compressor compressor
+
+	// On true writes Legacy (*.vtk) format
+	legacy bool
 }
 
 // header options
@@ -120,13 +135,13 @@ func (h *Header) NewFieldArray() *DataArray {
 // either raw or base64. By default, the appended data assumse base64 encoding.
 func (h *Header) setAppendedData() {
 	var enc string
-	switch h.Format {
+	switch h.format {
 	case FormatRaw:
-		enc = "raw"
+		enc = EncodingRaw
 	case FormatBinary:
-		enc = "base64"
+		enc = EncodingBase64
 	default:
-		enc = "base64"
+		enc = EncodingBase64
 	}
 
 	if h.Appended != nil {
@@ -138,17 +153,16 @@ func (h *Header) setAppendedData() {
 	}
 }
 
+// createArray creates a DataArray with encoder matchting the its format.
 func (h *Header) createArray(fieldData bool) *DataArray {
 	var enc encoder
-	switch h.Format {
+	switch h.format {
 	case FormatAscii:
 		enc = Asciier{}
 	case FormatBinary:
 		enc = Base64er{}
 	case FormatRaw:
 		enc = Binaryer{}
-	default:
-		panic("not sure what array to add")
 	}
 
 	return NewDataArray(enc, h.compressor, fieldData, h.Appended)
@@ -187,8 +201,10 @@ func Piece(opts ...func(p *Partition)) Option {
 	}
 }
 
-// todo add some private functions that add the actual data, these
-// functions can then just be wrappers around the internal api calls?
+// Data adds data to the file. When len(data) matched the number of points
+// or cells, the data is written accordingly. For ambiguous cases, the
+// function returns an error. The PointData and CellData calls should then be
+// considered instead.
 func Data(name string, data []float64) Option {
 	return func(h *Header) error {
 
@@ -210,12 +226,14 @@ func Data(name string, data []float64) Option {
 	}
 }
 
+// PointData writes the data to point data.
 func PointData(name string, data []float64) Option {
 	return func(h *Header) error {
 		return h.pointData(name, data)
 	}
 }
 
+// CellData writes the data to cell data.
 func CellData(name string, data []float64) Option {
 	return func(h *Header) error {
 		return h.cellData(name, data)
@@ -300,7 +318,7 @@ func Ascii() Option {
 			return fmt.Errorf(msg, FormatAscii)
 		}
 
-		h.Format = FormatAscii
+		h.format = FormatAscii
 		return nil
 	}
 }
@@ -308,14 +326,14 @@ func Ascii() Option {
 // The binary VTU format is actually base64 encoded to not break xml
 func Binary() Option {
 	return func(h *Header) error {
-		h.Format = FormatBinary
+		h.format = FormatBinary
 		return nil
 	}
 }
 
 func Raw() Option {
 	return func(h *Header) error {
-		h.Format = FormatRaw
+		h.format = FormatRaw
 		h.setAppendedData()
 		h.HeaderType = "UInt32" // combine this into an internal setting maybe?
 		return nil
@@ -324,9 +342,9 @@ func Raw() Option {
 
 func Appended() Option {
 	return func(h *Header) error {
-		if h.Format == FormatAscii {
+		if h.format == FormatAscii {
 			msg := "Cannot use appended data with format '%v'"
-			return fmt.Errorf(msg, h.Format)
+			return fmt.Errorf(msg, h.format)
 		}
 		h.setAppendedData()
 		h.HeaderType = "UInt32"
@@ -351,7 +369,6 @@ func WholeExtent(x0, x1, y0, y1, z0, z1 int) Option {
 	f := func(h *Header) error {
 		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)
 		h.Grid.Extent = str
-		//h.Grid.Extent = []int{x0, x1, y0, y1, z0, z1}
 		return nil
 	}
 	return f
@@ -419,7 +436,7 @@ func (h *Header) Save(filename string) error {
 // The header is omitted for FormatRaw as this is actually not compliant with
 // the xml standard.
 func (h *Header) Write(w io.Writer) error {
-	if h.Format != FormatRaw {
+	if h.format != FormatRaw {
 		_, err := w.Write([]byte(xml.Header))
 		if err != nil {
 			return err
@@ -428,7 +445,8 @@ func (h *Header) Write(w io.Writer) error {
 	return xml.NewEncoder(w).Encode(h)
 }
 
-// Add data specified on points
+// pointData is the internal routine to write data along points. The function
+// returns an error if the data does not distribute over the number of points.
 func (h *Header) pointData(name string, data []float64) error {
 	lp := h.lastPiece()
 
@@ -444,6 +462,8 @@ func (h *Header) pointData(name string, data []float64) error {
 	return lp.PointData.add(name, nc, data)
 }
 
+// cellData is the internal routine to write data along cells. The function
+// returns an error if the data does not distribute over the number of cells.
 func (h *Header) cellData(name string, data []float64) error {
 	lp := h.lastPiece()
 
@@ -462,15 +482,12 @@ func (h *Header) cellData(name string, data []float64) error {
 // Returns pointer to last piece in the mesh
 func (h *Header) lastPiece() *Partition {
 
-	// detect situations without a piece
 	if len(h.Grid.Pieces) == 0 {
 		switch h.Type {
 		case ImageData, RectilinearGrid, StructuredGrid:
 			b := stringToInts(h.Grid.Extent)
-			//h.Partition(Extent(b[0], b[1], b[2], b[3], b[4], b[5]))
 			h.Add(Piece(Extent(b[0], b[1], b[2], b[3], b[4], b[5])))
 		default:
-			//h.Partition()
 			h.Add(Piece())
 		}
 	}
