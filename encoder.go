@@ -76,7 +76,7 @@ func (a Asciier) encode(p *Payload) ([]byte, error) {
 	return p.body.Bytes(), nil
 }
 
-func (a Asciier) format() string { return ascii }
+func (a Asciier) format() string { return FormatAscii }
 
 // Base64er encodes the payload using standard base64 encoding.
 type Base64er struct{}

@@ -38,7 +38,7 @@ const (
 	RectilinearGrid  = "RectilinearGrid"
 	StructuredGrid   = "StructuredGrid"
 	UnstructuredGrid = "UnstructuredGrid"
-	ascii            = "ascii"
+	FormatAscii      = "ascii"
 	FormatAppended   = "appended"
 	FormatBinary     = "binary"
 	FormatRaw        = "raw"
@@ -56,7 +56,6 @@ type Header struct {
 	Compression string     `xml:"compressor,attr,omitempty"`
 	compressor  compressor // compression method
 	Grid        Grid
-	Append      bool `xml:"-"`
 	Appended    *DArray
 }
 
@@ -64,20 +63,23 @@ type Header struct {
 type Option func(h *Header) error
 
 // Construct new header describing the vtu file
-func newHeader(t string, opts ...Option) *Header {
+func newHeader(t string, opts ...Option) (*Header, error) {
 	h := &Header{
-		Type:      t,
-		Version:   2.0,
-		ByteOrder: "LittleEndian",
-		Grid:      Grid{XMLName: xml.Name{Local: t}},
+		Type:       t,
+		Version:    2.0,
+		ByteOrder:  "LittleEndian",
+		Grid:       Grid{XMLName: xml.Name{Local: t}},
+		compressor: noCompression{},
 	}
 
 	// apply all options
 	for _, opt := range opts {
-		opt(h)
+		if err := opt(h); err != nil {
+			return nil, err
+		}
 	}
 
-	return h
+	return h, nil
 }
 
 // data: image or unstructured
@@ -113,33 +115,33 @@ func (h *Header) NewFieldArray() *DataArray {
 	return h.createArray(true)
 }
 
-func (h *Header) createArray(fieldData bool) *DataArray {
-
-	da := &DataArray{}
-
-	if h.Append {
-		if h.Appended == nil {
-			name := xml.Name{Local: "Appended"}
-			enc := "base64"
-			if h.Format == FormatRaw {
-				enc = "raw"
-			}
-			h.Appended = &DArray{XMLName: name, Encoding: enc}
-		}
-
-		da.appended = h.Appended
+// setAppendedData defines a DArray to store the appended data when this has
+// not been set. Otherwise, the function updates the encoding method to
+// either raw or base64. By default, the appended data assumse base64 encoding.
+func (h *Header) setAppendedData() {
+	var enc string
+	switch h.Format {
+	case FormatRaw:
+		enc = "raw"
+	case FormatBinary:
+		enc = "base64"
+	default:
+		enc = "base64"
 	}
 
-	if h.compressor != nil {
-		da.compressor = h.compressor
+	if h.Appended != nil {
+		h.Appended.Encoding = enc
 	} else {
-		da.compressor = noCompression{}
+		h.Appended = &DArray{
+			XMLName:  xml.Name{Local: "AppendedData"},
+			Encoding: enc}
 	}
+}
 
-	da.fieldData = fieldData
+func (h *Header) createArray(fieldData bool) *DataArray {
 	var enc encoder
 	switch h.Format {
-	case ascii:
+	case FormatAscii:
 		enc = Asciier{}
 	case FormatBinary:
 		enc = Base64er{}
@@ -149,9 +151,7 @@ func (h *Header) createArray(fieldData bool) *DataArray {
 		panic("not sure what array to add")
 	}
 
-	da.encoder = enc
-
-	return da
+	return NewDataArray(enc, h.compressor, fieldData, h.Appended)
 }
 
 // Set applies a set of Options to the header
@@ -295,7 +295,12 @@ func Coordinates(x, y, z []float64) Option {
 
 func Ascii() Option {
 	return func(h *Header) error {
-		h.Format = ascii
+		if h.Appended != nil {
+			msg := "Cannot use '%v' encvoding with appended data"
+			return fmt.Errorf(msg, FormatAscii)
+		}
+
+		h.Format = FormatAscii
 		return nil
 	}
 }
@@ -311,7 +316,7 @@ func Binary() Option {
 func Raw() Option {
 	return func(h *Header) error {
 		h.Format = FormatRaw
-		h.Append = true
+		h.setAppendedData()
 		h.HeaderType = "UInt32" // combine this into an internal setting maybe?
 		return nil
 	}
@@ -319,7 +324,11 @@ func Raw() Option {
 
 func Appended() Option {
 	return func(h *Header) error {
-		h.Append = true
+		if h.Format == FormatAscii {
+			msg := "Cannot use appended data with format '%v'"
+			return fmt.Errorf(msg, h.Format)
+		}
+		h.setAppendedData()
 		h.HeaderType = "UInt32"
 		return nil
 	}
@@ -376,24 +385,23 @@ func Extent(x0, x1, y0, y1, z0, z1 int) func(p *Partition) {
 }
 
 // Create file with image data format
-func Image(opts ...Option) *Header {
+func Image(opts ...Option) (*Header, error) {
 	return newHeader(ImageData, opts...)
 }
 
 // Create file with rectilinear grid format
-func Rectilinear(opts ...Option) *Header {
+func Rectilinear(opts ...Option) (*Header, error) {
 	return newHeader(RectilinearGrid, opts...)
 }
 
 // Create file with structured format
-func Structured(opts ...Option) *Header {
+func Structured(opts ...Option) (*Header, error) {
 	return newHeader(StructuredGrid, opts...)
 }
 
 // Create file with unstructured format
-func Unstructured(opts ...Option) *Header {
-	v := newHeader(UnstructuredGrid, opts...)
-	return v
+func Unstructured(opts ...Option) (*Header, error) {
+	return newHeader(UnstructuredGrid, opts...)
 }
 
 // Save opens a file and writes the xml

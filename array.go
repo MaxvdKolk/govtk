@@ -41,6 +41,25 @@ type DataArray struct {
 	compressor compressor
 }
 
+// NewDataArray returns a newly allocated DataArray with encoder, compressor,
+// and fieldData flags. Optinal appended DArray pointer can be provided.
+func NewDataArray(enc encoder, cmp compressor, fieldData bool, app *DArray) *DataArray {
+	if app != nil {
+		return &DataArray{
+			appended:   app,
+			fieldData:  fieldData,
+			encoder:    enc,
+			compressor: cmp,
+		}
+	}
+
+	return &DataArray{
+		fieldData:  fieldData,
+		encoder:    enc,
+		compressor: cmp,
+	}
+}
+
 // DArray represent the innermost DataArray element containing various \
 // properties of the data, and the data itself.
 type DArray struct {
@@ -58,7 +77,7 @@ type DArray struct {
 	// The actual data to be stored, always represent as a set of bytes
 	Data []byte `xml:",innerxml"`
 
-	// Encoding is only required for Raw values
+	// Encoding is only required for appended data values ("raw", "base64")
 	Encoding string `xml:"encoding,attr,omitempty"`
 
 	// Offset holds a pointer to int, as we want to omit these values for
@@ -68,7 +87,7 @@ type DArray struct {
 	Offset *int `xml:"offset,attr,omitempty"`
 }
 
-// Provides a new DArray with properties set except the data fields
+// NewDArray provides a new DArray with properties set except the data fields
 func NewDArray(xmlName, dtype, name, format string) *DArray {
 	return &DArray{
 		XMLName: xml.Name{Local: xmlName},
@@ -80,38 +99,54 @@ func NewDArray(xmlName, dtype, name, format string) *DArray {
 
 // dataType tries to extract the data type, e.g. uint32, float64, etc., from
 // the emtpy interface.
-func (da *DataArray) dataType(data interface{}) string {
+//
+// TODO: compare to XML VTK requirements
+func (da *DataArray) dataType(data interface{}) (string, error) {
 	switch data.(type) {
-	case []int:
-		return "UInt32"
-	case []float64:
-		return "Float64"
+	case int, int32, uint32, []int, []int32, []uint32:
+		return "UInt32", nil
+	case int64, uint64, []int64, []uint64:
+		return "UInt64", nil
+	case float64, []float64:
+		return "Float64", nil
+	case float32, []float32:
+		return "Float32", nil
 	}
 
 	// todo add err test
-	return ""
+	return "", fmt.Errorf("Cannot map data %v (%T) to type", data, data)
 }
 
 // Add adds data to the data array. The data can be stored inline or
 // appended to a single storage
 func (da *DataArray) add(name string, n int, data interface{}) error {
-	// encode
+	// encode data into payload
 	payload := da.encoder.binarise(data)
 
-	// compress
+	// compress payload
 	payload, err := da.compressor.compress(payload)
 	if err != nil {
 		return err
 	}
 
-	bytes, err := da.encoder.encode(payload) // error check here
+	// encode payload as []byte
+	bytes, err := da.encoder.encode(payload)
 	if err != nil {
 		return err
 	}
 
-	// add err check
-	dtype := da.dataType(data)
-	format := da.encoder.format()
+	// extract data type to match XML VTK
+	dtype, err := da.dataType(data)
+	if err != nil {
+		return err
+	}
+
+	var format string
+	if da.appended != nil {
+		format = "appended"
+	} else {
+		format = da.encoder.format()
+	}
 
 	// get a new data array
 	arr := NewDArray("DataArray", dtype, name, format)
