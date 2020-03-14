@@ -94,6 +94,6 @@ func (z zlibCompression) decompress(p *Payload) (*Payload, error) {
 	return d, nil
 }
 
-func (zc zlibCompression) String() string {
+func (z zlibCompression) String() string {
 	return `Compressor: compress/zlib`
 }
