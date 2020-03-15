@@ -1,7 +1,6 @@
 package vtu
 
 import (
-	"compress/zlib"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -75,6 +74,7 @@ type Header struct {
 }
 
 // header options
+// todo add const of default options (i.e. compressed + base64)
 type Option func(h *Header) error
 
 // Construct new header describing the vtu file
@@ -352,15 +352,25 @@ func Appended() Option {
 	}
 }
 
+// Compressed assigns the compressor using the DefaultCompression level.
 func Compressed() Option {
-	return CompressedLevel(zlib.DefaultCompression)
+	return CompressedLevel(DefaultCompression)
 }
 
+// CompressedLevel assigns the compressor using a specific compression level.
+// Constants are provided: NoCompression, BestSpeed, BestCompression,
+// DefaultCompression, and HuffmanOnly.
 func CompressedLevel(level int) Option {
 	return func(h *Header) error {
 		h.HeaderType = "UInt32"
+
+		if level == NoCompression {
+			h.compressor = noCompression{}
+			return nil
+		}
+
 		h.Compression = ZlibCompressor // todo update names
-		h.compressor = zlibCompression{}
+		h.compressor = zlibCompression{level: level}
 		return nil
 	}
 }
