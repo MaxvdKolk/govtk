@@ -1,90 +1,77 @@
 package vtu
 
 import (
-	"encoding/base64"
-	"encoding/binary"
+	"strings"
 	"testing"
 )
 
-type pair struct {
-	val []float64
-	exp string
+// Ensure DArray's start out empty and with nil pointer offset
+func TestNewDArray(t *testing.T) {
+	xmlName := "xmlName"
+	dtype := "dtype"
+	name := "name"
+	format := "format"
+	da := NewDArray(xmlName, dtype, name, format)
+
+	if !strings.EqualFold(da.XMLName.Local, xmlName) {
+		t.Errorf("Wrong identifier")
+	}
+	if !strings.EqualFold(da.Type, dtype) {
+		t.Errorf("Wrong identifier")
+	}
+	if !strings.EqualFold(da.Name, name) {
+		t.Errorf("Wrong identifier")
+	}
+	if !strings.EqualFold(da.Format, format) {
+		t.Errorf("Wrong identifier")
+	}
+	if len(da.Data) > 0 {
+		t.Errorf("New DArray should start without data")
+	}
+	if da.NumberOfComponents > 0 && da.NumberOfTuples > 0 {
+		t.Errorf("New DArray should have no components/tuples")
+	}
+	if da.Offset != nil {
+		t.Errorf("New DArray should start without offset pointer %v", da.Offset)
+	}
 }
 
-func TestFloats(t *testing.T) {
+// test expected values provide the right data type descriptions
+func TestDataType(t *testing.T) {
+	da := &DataArray{}
+
+	type pair struct {
+		val interface{}
+		str string
+	}
+	// values that should parse
 	pairs := []pair{
-		pair{
-			val: []float64{1},
-			exp: string("1.000000"),
-		},
-		pair{ // print -, dont print +
-			val: []float64{-1, +1},
-			exp: string("-1.000000 1.000000"),
-		},
-		pair{ // space before -
-			val: []float64{1, -1},
-			exp: string("1.000000 -1.000000"),
-		},
-		pair{
-			val: []float64{1, 2, 3},
-			exp: string("1.000000 2.000000 3.000000"),
-		},
-		pair{
-			val: make([]float64, 3),
-			exp: string("0.000000 0.000000 0.000000"),
-		},
+		pair{val: float32(1.0), str: "Float32"},
+		pair{val: float64(1.0), str: "Float64"},
+		pair{val: int(1), str: "UInt32"},
+		pair{val: int32(1), str: "UInt32"},
+		pair{val: int64(1), str: "UInt64"},
 	}
-
-	testAsciiFloats(pairs, t)
-	testBase64Floats(pairs, t)
-}
-
-func testAsciiFloats(pairs []pair, t *testing.T) {
-	enc := Asciier{}
-	for i := range pairs {
-		pair := pairs[i]
-		pl := enc.Floats(pair.val)
-
-		if string(pl.data.Bytes()) != pair.exp {
-			t.Logf("got: '%v', want: '%v'", string(pl.data.Bytes()), pair.exp)
-			t.Fail()
-		}
-
-		if enc.String(pl) != pair.exp {
-			t.Logf("payload conversion: '%v', want: '%v'", string(pl.data.Bytes()), pair.exp)
-			t.Fail()
-		}
-	}
-}
-
-func testBase64Floats(pairs []pair, t *testing.T) {
-	enc := Base64er{}
-	cmp := NoCompressor{}
-
-	for i := range pairs {
-		pair := pairs[i]
-		pl := enc.Floats(pair.val)
-
-		cmp.Compress(pl)
-
-		//t.Logf(string(pl.data))
-		t.Logf("block size %v", pl.headerData()[0])
-
-		encString := enc.String(pl)
-
-		exp, err := base64.StdEncoding.DecodeString(encString)
-
+	for _, pair := range pairs {
+		str, err := da.dataType(pair.val)
 		if err != nil {
-			t.Logf("got error %v", err)
+			t.Error(err)
 		}
 
-		t.Logf("Encoded string: '%v'", encString)
-		t.Logf("Expected size: '%v'", binary.LittleEndian.Uint32(exp[:4]))
-		t.Logf("Decoded data: '%v'", string(exp[5:]))
-
-		if string(exp) != pair.exp {
-			t.Logf("got: '%v', want: '%v'", string(exp), pair.exp)
-			t.Fail()
+		if !strings.EqualFold(str, pair.str) {
+			t.Error("Datatype strings are not equal")
 		}
+	}
+
+	// values that should return an error
+	pairs = []pair{
+		pair{val: string("1.0"), str: ""},
+	}
+	for _, pair := range pairs {
+		_, err := da.dataType(pair.val)
+		if err == nil {
+			t.Error("Should return error")
+		}
+
 	}
 }
