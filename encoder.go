@@ -12,19 +12,19 @@ import (
 // The encoder interface provides functionality to convert int or float data
 // towards a payload. Additionally, the encoder encodes the payload's data.
 type encoder interface {
-	binarise(data interface{}) *Payload
-	encode(*Payload) ([]byte, error)
+	binarise(data interface{}) *payload
+	encode(*payload) ([]byte, error)
 	//decode([]byte) *Payload // todo
 	format() string
 }
 
-// Asciier encodes the payload using the ascii format.
-type Asciier struct{}
+// asciier encodes the payload using the ascii format.
+type asciier struct{}
 
 // Binarise creates a payload where the body is filled with the bytes of the
 // string representation of the provided data. A space (" ") is inserted
 // after each element of the data, except after the last.
-func (a Asciier) binarise(data interface{}) *Payload {
+func (a asciier) binarise(data interface{}) *payload {
 	p := newPayload()
 
 	// temp func to write []byte to buffer
@@ -60,7 +60,7 @@ func (a Asciier) binarise(data interface{}) *Payload {
 			}
 		}
 	default:
-		log.Fatalf("No binarise case for %T in Asciier", v)
+		log.Fatalf("No binarise case for %T in asciier", v)
 	}
 
 	// set header
@@ -72,16 +72,16 @@ func (a Asciier) binarise(data interface{}) *Payload {
 
 // Encode encodes the payload to []byte.
 // For ascii format only the body of the payload is required.
-func (a Asciier) encode(p *Payload) ([]byte, error) {
+func (a asciier) encode(p *payload) ([]byte, error) {
 	return p.body.Bytes(), nil
 }
 
-func (a Asciier) format() string { return FormatAscii }
+func (a asciier) format() string { return formatAscii }
 
-// Base64er encodes the payload using standard base64 encoding.
-type Base64er struct{}
+// base64er encodes the payload using standard base64 encoding.
+type base64er struct{}
 
-func (b Base64er) binarise(data interface{}) *Payload {
+func (b base64er) binarise(data interface{}) *payload {
 	p, err := newPayloadFromData(data)
 	if err != nil {
 		log.Fatalf("Cannot convert data to payload: %v", err)
@@ -89,7 +89,7 @@ func (b Base64er) binarise(data interface{}) *Payload {
 	return p
 }
 
-func (b Base64er) encode(p *Payload) ([]byte, error) {
+func (b base64er) encode(p *payload) ([]byte, error) {
 	enc := base64.StdEncoding
 	data := new(bytes.Buffer)
 	encoder := base64.NewEncoder(enc, data)
@@ -120,12 +120,12 @@ func (b Base64er) encode(p *Payload) ([]byte, error) {
 	return data.Bytes(), nil
 }
 
-func (b Base64er) format() string { return FormatBinary }
+func (b base64er) format() string { return formatBinary }
 
-// Binaryer encodes the payload as raw binary data.
-type Binaryer struct{}
+// binaryer encodes the payload as raw binary data.
+type binaryer struct{}
 
-func (b Binaryer) binarise(data interface{}) *Payload {
+func (b binaryer) binarise(data interface{}) *payload {
 	p, err := newPayloadFromData(data)
 	if err != nil {
 		log.Fatalf("Cannot convert data to payload: %v", err)
@@ -133,8 +133,8 @@ func (b Binaryer) binarise(data interface{}) *Payload {
 	return p
 }
 
-func (b Binaryer) encode(p *Payload) ([]byte, error) {
+func (b binaryer) encode(p *payload) ([]byte, error) {
 	return append(p.head.Bytes(), p.body.Bytes()...), nil
 }
 
-func (b Binaryer) format() string { return FormatRaw }
+func (b binaryer) format() string { return formatRaw }

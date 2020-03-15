@@ -36,16 +36,16 @@ information to files...
 // we could make a type vtktype string?
 const (
 	// VTK XML types.
-	ImageData        = "ImageData"
-	RectilinearGrid  = "RectilinearGrid"
-	StructuredGrid   = "StructuredGrid"
-	UnstructuredGrid = "UnstructuredGrid"
+	imageData        = "ImageData"
+	rectilinearGrid  = "RectilinearGrid"
+	structuredGrid   = "StructuredGrid"
+	unstructuredGrid = "UnstructuredGrid"
 
 	// Data format representations
-	FormatAscii    = "ascii"
-	FormatBinary   = "binary"
-	FormatRaw      = "raw"
-	FormatAppended = "appended"
+	formatAscii    = "ascii"
+	formatBinary   = "binary"
+	formatRaw      = "raw"
+	formatAppended = "appended"
 
 	// Methods of encoding binary data in the VTK
 	// Note: EncodingRaw breaks XML standards.
@@ -65,7 +65,7 @@ type Header struct {
 	HeaderType  string   `xml:"header_type,attr,omitempty"` // todo do is this req?
 	Compression string   `xml:"compressor,attr,omitempty"`
 	Grid        Grid
-	Appended    *DArray
+	Appended    *darray
 
 	format     string
 	compressor compressor
@@ -85,7 +85,7 @@ func newHeader(t string, opts ...Option) (*Header, error) {
 		Version:    2.0,
 		ByteOrder:  "LittleEndian",
 		Grid:       Grid{XMLName: xml.Name{Local: t}},
-		format:     FormatBinary, // improve with better default settings
+		format:     formatBinary, // improve with better default settings
 		compressor: noCompression{},
 	}
 
@@ -105,42 +105,42 @@ type Grid struct {
 	Extent  string     `xml:"WholeExtent,attr,omitempty"`
 	Origin  string     `xml:"Origin,attr,omitempty"`
 	Spacing string     `xml:"Spacing,attr,omitempty"`
-	Data    *DataArray `xml:"FieldData,omitempty"`
-	Pieces  []Partition
+	Data    *dataArray `xml:"FieldData,omitempty"`
+	Pieces  []partition
 }
 
 // Partition contains all vtu related data of a partition of the mesh, this
 // partition can be the complete, or a subset of, the mesh. The VTU docs
 // refer to a partition as a "Piece".
-type Partition struct {
+type partition struct {
 	XMLName        xml.Name   `xml:"Piece"`
 	Extent         string     `xml:"Extent,attr,omitempty"`
 	NumberOfPoints int        `xml:"NumberOfPoints,attr"`
 	NumberOfCells  int        `xml:"NumberOfCells,attr"`
-	Points         *DataArray `xml:",omitempty"` // todo seems overly verbose?
-	Cells          *DataArray `xml:",omitempty"`
-	Coordinates    *DataArray `xml:",omitempty"`
-	PointData      *DataArray `xml:",omitempty"`
-	CellData       *DataArray `xml:",omitempty"`
+	Points         *dataArray `xml:",omitempty"` // todo seems overly verbose?
+	Cells          *dataArray `xml:",omitempty"`
+	Coordinates    *dataArray `xml:",omitempty"`
+	PointData      *dataArray `xml:",omitempty"`
+	CellData       *dataArray `xml:",omitempty"`
 }
 
-func (h *Header) NewArray() *DataArray {
+func (h *Header) NewArray() *dataArray {
 	return h.createArray(false)
 }
 
-func (h *Header) NewFieldArray() *DataArray {
+func (h *Header) NewFieldArray() *dataArray {
 	return h.createArray(true)
 }
 
-// setAppendedData defines a DArray to store the appended data when this has
+// setAppendedData defines a darray to store the appended data when this has
 // not been set. Otherwise, the function updates the encoding method to
 // either raw or base64. By default, the appended data assumse base64 encoding.
 func (h *Header) setAppendedData() {
 	var enc string
 	switch h.format {
-	case FormatRaw:
+	case formatRaw:
 		enc = EncodingRaw
-	case FormatBinary:
+	case formatBinary:
 		enc = EncodingBase64
 	default:
 		enc = EncodingBase64
@@ -149,25 +149,25 @@ func (h *Header) setAppendedData() {
 	if h.Appended != nil {
 		h.Appended.Encoding = enc
 	} else {
-		h.Appended = &DArray{
+		h.Appended = &darray{
 			XMLName:  xml.Name{Local: "AppendedData"},
 			Encoding: enc}
 	}
 }
 
-// createArray creates a DataArray with encoder matchting the its format.
-func (h *Header) createArray(fieldData bool) *DataArray {
+// createArray creates a dataArray with encoder matchting the its format.
+func (h *Header) createArray(fieldData bool) *dataArray {
 	var enc encoder
 	switch h.format {
-	case FormatAscii:
-		enc = Asciier{}
-	case FormatBinary:
-		enc = Base64er{}
-	case FormatRaw:
-		enc = Binaryer{}
+	case formatAscii:
+		enc = asciier{}
+	case formatBinary:
+		enc = base64er{}
+	case formatRaw:
+		enc = binaryer{}
 	}
 
-	return NewDataArray(enc, h.compressor, fieldData, h.Appended)
+	return newDataArray(enc, h.compressor, fieldData, h.Appended)
 }
 
 // Set applies a set of Options to the header
@@ -195,9 +195,9 @@ func Points(data []float64) Option {
 	}
 }
 
-func Piece(opts ...func(p *Partition)) Option {
+func Piece(opts ...func(p *partition)) Option {
 	return func(h *Header) error {
-		p := Partition{}
+		p := partition{}
 		for _, opt := range opts {
 			opt(&p)
 		}
@@ -321,10 +321,10 @@ func Ascii() Option {
 	return func(h *Header) error {
 		if h.Appended != nil {
 			msg := "Cannot use '%v' encvoding with appended data"
-			return fmt.Errorf(msg, FormatAscii)
+			return fmt.Errorf(msg, formatAscii)
 		}
 
-		h.format = FormatAscii
+		h.format = formatAscii
 		return nil
 	}
 }
@@ -332,14 +332,14 @@ func Ascii() Option {
 // The binary VTU format is actually base64 encoded to not break xml
 func Binary() Option {
 	return func(h *Header) error {
-		h.format = FormatBinary
+		h.format = formatBinary
 		return nil
 	}
 }
 
 func Raw() Option {
 	return func(h *Header) error {
-		h.format = FormatRaw
+		h.format = formatRaw
 		h.setAppendedData()
 		h.HeaderType = "UInt32" // combine this into an internal setting maybe?
 		return nil
@@ -348,7 +348,7 @@ func Raw() Option {
 
 func Appended() Option {
 	return func(h *Header) error {
-		if h.format == FormatAscii {
+		if h.format == formatAscii {
 			msg := "Cannot use appended data with format '%v'"
 			return fmt.Errorf(msg, h.format)
 		}
@@ -404,8 +404,8 @@ func Spacing(dx, dy, dz float64) Option {
 	}
 }
 
-func Extent(x0, x1, y0, y1, z0, z1 int) func(p *Partition) {
-	f := func(p *Partition) {
+func Extent(x0, x1, y0, y1, z0, z1 int) func(p *partition) {
+	f := func(p *partition) {
 		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)
 		p.Extent = str
 
@@ -419,22 +419,22 @@ func Extent(x0, x1, y0, y1, z0, z1 int) func(p *Partition) {
 
 // Create file with image data format
 func Image(opts ...Option) (*Header, error) {
-	return newHeader(ImageData, opts...)
+	return newHeader(imageData, opts...)
 }
 
 // Create file with rectilinear grid format
 func Rectilinear(opts ...Option) (*Header, error) {
-	return newHeader(RectilinearGrid, opts...)
+	return newHeader(rectilinearGrid, opts...)
 }
 
 // Create file with structured format
 func Structured(opts ...Option) (*Header, error) {
-	return newHeader(StructuredGrid, opts...)
+	return newHeader(structuredGrid, opts...)
 }
 
 // Create file with unstructured format
 func Unstructured(opts ...Option) (*Header, error) {
-	return newHeader(UnstructuredGrid, opts...)
+	return newHeader(unstructuredGrid, opts...)
 }
 
 // Save opens a file and writes the xml
@@ -449,10 +449,10 @@ func (h *Header) Save(filename string) error {
 
 // Encodes the xml towards a io.Writer. Writes a xml header (i.e.
 // xml.Header constant) to the buffer first for both ascii and base64 formats.
-// The header is omitted for FormatRaw as this is actually not compliant with
+// The header is omitted for formatRaw as this is actually not compliant with
 // the xml standard.
 func (h *Header) Write(w io.Writer) error {
-	if h.format != FormatRaw {
+	if h.format != formatRaw {
 		_, err := w.Write([]byte(xml.Header))
 		if err != nil {
 			return err
@@ -499,11 +499,11 @@ func (h *Header) cellData(name string, data interface{}) error {
 }
 
 // Returns pointer to last piece in the mesh
-func (h *Header) lastPiece() *Partition {
+func (h *Header) lastPiece() *partition {
 
 	if len(h.Grid.Pieces) == 0 {
 		switch h.Type {
-		case ImageData, RectilinearGrid, StructuredGrid:
+		case imageData, rectilinearGrid, structuredGrid:
 			b := stringToInts(h.Grid.Extent)
 			h.Add(Piece(Extent(b[0], b[1], b[2], b[3], b[4], b[5])))
 		default:

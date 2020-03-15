@@ -58,7 +58,7 @@ var pairs = []pair{
 func TestBinarise(t *testing.T) {
 
 	// ascii format
-	enc := Asciier{}
+	enc := asciier{}
 	buf := new(bytes.Buffer)
 	for _, pair := range pairs {
 		buf.Reset()
@@ -86,7 +86,7 @@ func TestBinarise(t *testing.T) {
 	}
 
 	// base64, binary format
-	encoders := []encoder{Base64er{}, Binaryer{}}
+	encoders := []encoder{base64er{}, binaryer{}}
 	for _, enc := range encoders {
 		for _, pair := range pairs {
 			p := enc.binarise(pair.val)
@@ -121,7 +121,7 @@ func TestBinarise(t *testing.T) {
 
 // Ensure ascii encoding only contains the payloads body
 func TestEncodeAscii(t *testing.T) {
-	enc := Asciier{}
+	enc := asciier{}
 	for _, pair := range pairs {
 		p := enc.binarise(pair.val)
 		b, err := enc.encode(p)
@@ -137,7 +137,7 @@ func TestEncodeAscii(t *testing.T) {
 // Ensure the binary encoding just equals the body and header
 // This seems a bit trivial?
 func TestEncodeBinary(t *testing.T) {
-	enc := Binaryer{}
+	enc := binaryer{}
 	compressors := []compressor{noCompression{}, zlibCompression{}}
 
 	for _, c := range compressors {
@@ -162,7 +162,7 @@ func TestEncodeBinary(t *testing.T) {
 // Ensure we get expected values.
 // Current tests are quite limited, i.e. only float64 slices.
 func TestEncodeBase64(t *testing.T) {
-	enc := Base64er{}
+	enc := base64er{}
 	var c compressor
 
 	c = noCompression{}

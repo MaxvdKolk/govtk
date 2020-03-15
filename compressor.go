@@ -20,15 +20,15 @@ const (
 // The compressor interface requires the ability to compress and
 // decompress a payload.
 type compressor interface {
-	compress(p *Payload) (*Payload, error)
-	decompress(p *Payload) (*Payload, error)
+	compress(p *payload) (*payload, error)
+	decompress(p *payload) (*payload, error)
 }
 
 // Satifies the compressor iterface, without applying any (de)compression.
 type noCompression struct{}
 
 // Compress returns the payload without any compression
-func (nc noCompression) compress(p *Payload) (*Payload, error) {
+func (nc noCompression) compress(p *payload) (*payload, error) {
 	if p.head.Len() == 0 {
 		// insert header if not set
 		p.setHeader()
@@ -37,7 +37,7 @@ func (nc noCompression) compress(p *Payload) (*Payload, error) {
 }
 
 // Decompress returns the payload without any decompression
-func (nc noCompression) decompress(p *Payload) (*Payload, error) {
+func (nc noCompression) decompress(p *payload) (*payload, error) {
 	return p, nil
 }
 
@@ -52,7 +52,7 @@ type zlibCompression struct {
 
 // Compress returns a compressed copy of the provided payload and updates
 // the payload's header.
-func (z zlibCompression) compress(p *Payload) (*Payload, error) {
+func (z zlibCompression) compress(p *payload) (*payload, error) {
 	c := newPayload()
 
 	// zlib writer
@@ -85,7 +85,7 @@ func (z zlibCompression) compress(p *Payload) (*Payload, error) {
 
 // Decompress returns a decompressed copy of the provided payload and updates
 // the payload's header.
-func (z zlibCompression) decompress(p *Payload) (*Payload, error) {
+func (z zlibCompression) decompress(p *payload) (*payload, error) {
 	d := newPayload()
 
 	reader, err := zlib.NewReader(p.body)

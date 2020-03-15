@@ -7,24 +7,24 @@ import (
 	"strings"
 )
 
-// DataArray represent shte inner data containers of the VTK XML structure.
-// The format allows for multiple of these DataArrays to be present, e.g. to
-// represent PointData, CellData, etc. The DataArray might contain multiple
-// fields, implemented by the DArray struct.
-type DataArray struct {
+// DataArray represents the inner data containers of the VTK XML structure.
+// The format allows for multiple of these dataArrays to be present, e.g. to
+// represent PointData, CellData, etc. The dataArray might contain multiple
+// fields, implemented by the darray struct.
+type dataArray struct {
 	// Name of the XML element, e.g. PointData, CellData, etc.
 	XMLName xml.Name
 
 	// A collection of data sets within this XML element.
-	Data []*DArray
+	Data []*darray
 
-	// appended holds a pointer to an external DArray. This allows us
+	// appended holds a pointer to an external darray. This allows us
 	// to write appended data formats that do not store the actual data
-	// inline of the DataArray XML element. However, these attach the
-	// data to a single, external DArray. The []*DArray will only hold
+	// inline of the dataArray XML element. However, these attach the
+	// data to a single, external darray. The []*darray will only hold
 	// an offset towards the starting point of its data within the
-	// external, appended DArray.
-	appended *DArray
+	// external, appended darray.
+	appended *darray
 
 	// fieldData is true when the to be stored data is intended as
 	// fieldData, i.e. global data to the XML VTK format. This could hold
@@ -41,11 +41,11 @@ type DataArray struct {
 	compressor compressor
 }
 
-// NewDataArray returns a newly allocated DataArray with encoder, compressor,
-// and fieldData flags. Optinal appended DArray pointer can be provided.
-func NewDataArray(enc encoder, cmp compressor, fieldData bool, app *DArray) *DataArray {
+// NewdataArray returns a newly allocated dataArray with encoder, compressor,
+// and fieldData flags. Optinal appended darray pointer can be provided.
+func newDataArray(enc encoder, cmp compressor, fieldData bool, app *darray) *dataArray {
 	if app != nil {
-		return &DataArray{
+		return &dataArray{
 			appended:   app,
 			fieldData:  fieldData,
 			encoder:    enc,
@@ -53,22 +53,22 @@ func NewDataArray(enc encoder, cmp compressor, fieldData bool, app *DArray) *Dat
 		}
 	}
 
-	return &DataArray{
+	return &dataArray{
 		fieldData:  fieldData,
 		encoder:    enc,
 		compressor: cmp,
 	}
 }
 
-// DArray represent the innermost DataArray element containing various \
+// darray represent the innermost dataArray element containing various \
 // properties of the data, and the data itself.
-type DArray struct {
+type darray struct {
 	XMLName xml.Name
 	Type    string `xml:"type,attr,omitempty"`
 	Name    string `xml:"Name,attr,omitempty"`
 	Format  string `xml:"format,attr,omitempty"`
 
-	// DataArray typically requires to specifuy NumberOfComponents,
+	// dataArray typically requires to specifuy NumberOfComponents,
 	// however, when writing fieldData (global data) the format requires
 	// to specify NumberOfTuples instead.
 	NumberOfComponents int `xml:"NumberOfComponents,attr,omitempty"`
@@ -81,15 +81,15 @@ type DArray struct {
 	Encoding string `xml:"encoding,attr,omitempty"`
 
 	// Offset holds a pointer to int, as we want to omit these values for
-	// any DArray that does not require offset, while we do not want to
+	// any darray that does not require offset, while we do not want to
 	// consider Offset = 0 as an empty value. Thus, by making this a
 	// pointer, the xml encoding only considers it empty when equal to nil.
 	Offset *int `xml:"offset,attr,omitempty"`
 }
 
-// NewDArray provides a new DArray with properties set except the data fields
-func NewDArray(xmlName, dtype, name, format string) *DArray {
-	return &DArray{
+// Newdarray provides a new darray with properties set except the data fields
+func newDArray(xmlName, dtype, name, format string) *darray {
+	return &darray{
 		XMLName: xml.Name{Local: xmlName},
 		Type:    dtype,
 		Name:    name,
@@ -101,7 +101,7 @@ func NewDArray(xmlName, dtype, name, format string) *DArray {
 // the emtpy interface.
 //
 // TODO: compare to XML VTK requirements
-func (da *DataArray) dataType(data interface{}) (string, error) {
+func (da *dataArray) dataType(data interface{}) (string, error) {
 	switch data.(type) {
 	case int, int32, uint32, []int, []int32, []uint32:
 		return "UInt32", nil
@@ -119,7 +119,7 @@ func (da *DataArray) dataType(data interface{}) (string, error) {
 
 // Add adds data to the data array. The data can be stored inline or
 // appended to a single storage
-func (da *DataArray) add(name string, n int, data interface{}) error {
+func (da *dataArray) add(name string, n int, data interface{}) error {
 	// encode data into payload
 	if da.encoder == nil {
 		return fmt.Errorf("Missing encoder. No format specified.")
@@ -152,7 +152,7 @@ func (da *DataArray) add(name string, n int, data interface{}) error {
 	}
 
 	// get a new data array
-	arr := NewDArray("DataArray", dtype, name, format)
+	arr := newDArray("DataArray", dtype, name, format)
 
 	// set components
 	if da.fieldData {
@@ -168,7 +168,7 @@ func (da *DataArray) add(name string, n int, data interface{}) error {
 		return nil
 	}
 
-	format = FormatAppended
+	format = formatAppended
 
 	// appended data is required to start with underscore ("_")
 	if len(da.appended.Data) == 0 {

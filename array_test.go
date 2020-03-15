@@ -11,7 +11,7 @@ func TestNewDArray(t *testing.T) {
 	dtype := "dtype"
 	name := "name"
 	format := "format"
-	da := NewDArray(xmlName, dtype, name, format)
+	da := newDArray(xmlName, dtype, name, format)
 
 	if !strings.EqualFold(da.XMLName.Local, xmlName) {
 		t.Errorf("Wrong identifier")
@@ -26,19 +26,19 @@ func TestNewDArray(t *testing.T) {
 		t.Errorf("Wrong identifier")
 	}
 	if len(da.Data) > 0 {
-		t.Errorf("New DArray should start without data")
+		t.Errorf("New darray should start without data")
 	}
 	if da.NumberOfComponents > 0 && da.NumberOfTuples > 0 {
-		t.Errorf("New DArray should have no components/tuples")
+		t.Errorf("New darray should have no components/tuples")
 	}
 	if da.Offset != nil {
-		t.Errorf("New DArray should start without offset pointer %v", da.Offset)
+		t.Errorf("New darray should start without offset pointer %v", da.Offset)
 	}
 }
 
 // test expected values provide the right data type descriptions
 func TestDataType(t *testing.T) {
-	da := &DataArray{}
+	da := &dataArray{}
 
 	type pair struct {
 		val interface{}

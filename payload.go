@@ -14,20 +14,20 @@ import (
 // 	 bytes current body
 // 	 bytes previous body (when num blocks == 1: equal to current block)
 // 	 bytes compressed block
-type Payload struct {
+type payload struct {
 	head *bytes.Buffer
 	body *bytes.Buffer
 }
 
 // NewPayload returns a pointer to a payload with empty buffers.
-func newPayload() *Payload {
-	return &Payload{head: new(bytes.Buffer), body: new(bytes.Buffer)}
+func newPayload() *payload {
+	return &payload{head: new(bytes.Buffer), body: new(bytes.Buffer)}
 }
 
 // NewPayloadFromData returns a pointer to payload constructed for the
 // data interface{}. The header is set after filling, no matter if the
 // write operation failed. It is up to the caller to verify err == nil.
-func newPayloadFromData(data interface{}) (*Payload, error) {
+func newPayloadFromData(data interface{}) (*payload, error) {
 	p := newPayload()
 
 	switch v := data.(type) {
@@ -50,13 +50,13 @@ func newPayloadFromData(data interface{}) (*Payload, error) {
 }
 
 // setHeader sets the header buffer with the data's length in bytes.
-func (p *Payload) setHeader() error {
+func (p *payload) setHeader() error {
 	p.head.Reset()
 	return binary.Write(p.head, binary.LittleEndian, int32(p.body.Len()))
 }
 
 // compressed returns true if the payload has been compressed.
-func (p *Payload) isCompressed() bool {
+func (p *payload) isCompressed() bool {
 	if p.head.Len() == 4 {
 		// a single int32 header implies no compression
 		return false
@@ -65,7 +65,7 @@ func (p *Payload) isCompressed() bool {
 }
 
 // Reset resets both byte slices of the payload.
-func (p *Payload) reset() {
+func (p *payload) reset() {
 	p.head.Reset()
 	p.body.Reset()
 }
