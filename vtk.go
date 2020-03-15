@@ -383,6 +383,25 @@ func CompressedLevel(level int) Option {
 
 func WholeExtent(x0, x1, y0, y1, z0, z1 int) Option {
 	f := func(h *Header) error {
+		dim := 3
+		if x1-x0 == 0 {
+			dim--
+		}
+		if y1-y0 == 0 {
+			dim--
+		}
+		if z1-z0 == 0 {
+			dim--
+		}
+		if dim < 2 {
+			return fmt.Errorf("Image requires at least two dimensions")
+		}
+
+		// ensure smallest value given first
+		if x0 > x1 || y0 > y1 || z0 > z1 {
+			return fmt.Errorf("Extent values should be sorted low - high")
+		}
+
 		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)
 		h.Grid.Extent = str
 		return nil
@@ -390,6 +409,7 @@ func WholeExtent(x0, x1, y0, y1, z0, z1 int) Option {
 	return f
 }
 
+// Origin sets the origin of the VTK image, rectilinear, and structured grids.
 func Origin(x, y, z float64) Option {
 	return func(h *Header) error {
 		h.Grid.Origin = fmt.Sprintf("%f %f %f", x, y, z)
@@ -397,6 +417,7 @@ func Origin(x, y, z float64) Option {
 	}
 }
 
+// Spacing sets the spacing in x, y, z direction of the VTK image grids.
 func Spacing(dx, dy, dz float64) Option {
 	return func(h *Header) error {
 		h.Grid.Spacing = fmt.Sprintf("%f %f %f", dx, dy, dz)
@@ -404,6 +425,8 @@ func Spacing(dx, dy, dz float64) Option {
 	}
 }
 
+// Extent sets the part of the domain given in the current partition. This
+// should be within WholeExtent.
 func Extent(x0, x1, y0, y1, z0, z1 int) func(p *partition) {
 	f := func(p *partition) {
 		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)

@@ -1,23 +1,11 @@
 package govtk
 
 import (
-	"bytes"
 	"encoding/xml"
 	"fmt"
 	"os"
 	"testing"
-	//	"compress/zlib"
 )
-
-/* todo
-- store provided data not directly as strings; convert at moment of writing
-- tensor (?) field data
-- base64 encoding per xml piece
-- appended format
-- binary (raw) encoding in appended format
-- compression zlib for base64 and raw encoding
-- test formats
-*/
 
 func TestAppendedData(t *testing.T) {
 	vtu, _ := Image(Appended())
@@ -99,6 +87,56 @@ func TestCompressionLevels(t *testing.T) {
 	_, ok = vtu.compressor.(noCompression)
 	if !ok {
 		t.Errorf("Expected no compressor, got %T", vtu.compressor)
+	}
+}
+
+// Ensure image extent is written as expected and fails on wrong inputs.
+func TestImageExtent(t *testing.T) {
+	type pair struct {
+		ext [6]int
+		str string
+	}
+
+	// expected to succeed
+	pairs := []pair{
+		pair{[6]int{0, 5, 0, 10, 0, 15}, "0 5 0 10 0 15"},
+		pair{[6]int{0, 0, 0, 10, 0, 15}, "0 0 0 10 0 15"},
+		pair{[6]int{0, 1, 0, 1, 0, 0}, "0 1 0 1 0 0"},
+		pair{[6]int{-1, 0, -1, 0, -1, 0}, "-1 0 -1 0 -1 0"},
+	}
+	for i, p := range pairs {
+		opt := WholeExtent(p.ext[0], p.ext[1], p.ext[2], p.ext[3], p.ext[4], p.ext[5])
+		im, err := Image(opt)
+		if err != nil {
+			t.Errorf("Cannot setup image with extent")
+		}
+
+		if im.Grid.Extent != p.str {
+			t.Errorf("Wrong extent: got: %v, exp: %v", im.Grid.Extent, p.str)
+		}
+
+		if true {
+			f, err := os.Create(fmt.Sprintf("im_ext_%d.vti", i))
+			if err != nil {
+				t.Errorf("cannot open file")
+			}
+			im.Write(f)
+		}
+	}
+
+	// expected to fail
+	pairs = []pair{
+		pair{ext: [6]int{0, 1, 0, 0, 0, 0}, str: "incorrect dimension yz"},
+		pair{ext: [6]int{0, 0, 0, 1, 0, 0}, str: "incorrect dimension xz"},
+		pair{ext: [6]int{0, 0, 0, 0, 0, 1}, str: "incorrect dimension xy"},
+		pair{ext: [6]int{1, 0, 1, 0, 1, 0}, str: "extend low - high values"},
+	}
+	for _, p := range pairs {
+		opt := WholeExtent(p.ext[0], p.ext[1], p.ext[2], p.ext[3], p.ext[4], p.ext[5])
+		_, err := Image(opt)
+		if err == nil {
+			t.Errorf("No error received for expected failed for '%v'", p.str)
+		}
 	}
 }
 
@@ -204,7 +242,6 @@ func TestImage(t *testing.T) {
 
 	asc := append(opts, Ascii())
 
-	fmt.Println("asci...")
 	// image file
 	str, _ := Image(asc...)
 	//	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
@@ -213,23 +250,8 @@ func TestImage(t *testing.T) {
 	//str.Add(FieldData("F", []float64{1.0}))
 	str.Save("im.vti")
 
-	var buf bytes.Buffer
-	str.Write(&buf)
-
-	fmt.Println("len", len(buf.Bytes()))
-
-	decoded := xml.NewDecoder(&buf)
-
-	dim, _ := Image()
-
-	err := decoded.Decode(dim)
-	fmt.Println("err", err)
-	fmt.Println("dim", dim, str)
-
-	fmt.Println("done asci...")
-
 	bin := append(opts, Binary())
-	str, err = Image(bin...)
+	str, _ = Image(bin...)
 	str.Add(FieldData("F", []float64{1.0}))
 	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
