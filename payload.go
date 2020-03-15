@@ -29,9 +29,24 @@ func newPayload() *Payload {
 // write operation failed. It is up to the caller to verify err == nil.
 func newPayloadFromData(data interface{}) (*Payload, error) {
 	p := newPayload()
-	err := binary.Write(p.body, binary.LittleEndian, data)
+
+	switch v := data.(type) {
+	case []int:
+		for _, x := range v {
+			err := binary.Write(p.body, binary.LittleEndian, int32(x))
+			if err != nil {
+				return nil, err
+			}
+		}
+	default:
+		err := binary.Write(p.body, binary.LittleEndian, data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	p.setHeader()
-	return p, err
+	return p, nil
 }
 
 // setHeader sets the header buffer with the data's length in bytes.
