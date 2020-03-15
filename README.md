@@ -11,9 +11,9 @@ data can be compressed using ```zlib``` by means of the Go standard library ```c
 ## Installation
 Install the package (or module) 
 ```
-go get github.com/maxvdkolk/govtk
+go get -u -v github.com/maxvdkolk/govtk/...
 ```
-The package is then included by importing  
+Which provides the `govtk` command as well as the package: 
 ```go 
 import ("github.com/maxvdkolk/govtk")
 ```
