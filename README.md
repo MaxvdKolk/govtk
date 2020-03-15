@@ -2,6 +2,7 @@
 A Go package to write data to VTK XML files. 
 
 [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](https://godoc.org/github.com/maxvdkolk/govtk)
+![Go](https://github.com/MaxvdKolk/govtk/workflows/Go/badge.svg)
 
 *Note: still work in progress. Not all features are finished / implemented* 
 
