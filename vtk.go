@@ -290,7 +290,7 @@ func Coordinates(x, y, z []float64) Option {
 	return func(h *Header) error {
 		lp := h.lastPiece()
 
-		if len(lp.Coordinates.Data) != 0 {
+		if lp.Coordinates != nil {
 			return fmt.Errorf("Coordinates already set")
 		}
 
