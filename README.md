@@ -38,17 +38,18 @@ saving to a provided ```io.Writer```, ```Save(io.Writer)```.
 
 ### Image data 
 ```go 
-im := Image(Binary(), Compressed(), Origin(0, 0, 0), Spacing(1, 1, 1))
-im.Add(Data(...))
+im := govtk.Image(govtk.Binary(), govtk.Compressed(), 
+                  govtk.Origin(0, 0, 0), govtk.Spacing(1, 1, 1))
+im.Add(govtk.Data(...))
 im.Save("file")
 ```
 
 ### Structured grid
 ```go
-im := Structured(Binary(), Compressed()) 
-im.Add(Points(...))
-im.Add(Data(...))
-im.Save("file" 
+im := govtk.Structured(govtk.Binary(), govtk.Compressed()) 
+im.Add(govtk.Points(...))
+im.Add(govtk.Data(...))
+im.Save("file") 
 ```
 
 ### Unstructured grid 
