@@ -40,33 +40,33 @@ func TestAppendedData(t *testing.T) {
 	}
 
 	vtu, _ = Image(Raw())
-	if vtu.Appended.Encoding != EncodingRaw {
+	if vtu.Appended.Encoding != encodingRaw {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, EncodingRaw)
+			vtu.Appended.Encoding, encodingRaw)
 	}
 
 	vtu, _ = Image(Appended(), Raw())
-	if vtu.Appended.Encoding != EncodingRaw {
+	if vtu.Appended.Encoding != encodingRaw {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, EncodingRaw)
+			vtu.Appended.Encoding, encodingRaw)
 	}
 
 	vtu, _ = Image(Raw(), Appended())
-	if vtu.Appended.Encoding != EncodingRaw {
+	if vtu.Appended.Encoding != encodingRaw {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, EncodingRaw)
+			vtu.Appended.Encoding, encodingRaw)
 	}
 
 	vtu, _ = Image(Appended(), Binary())
-	if vtu.Appended.Encoding != EncodingBase64 {
+	if vtu.Appended.Encoding != encodingBase64 {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, EncodingBase64)
+			vtu.Appended.Encoding, encodingBase64)
 	}
 
 	vtu, _ = Image(Binary(), Appended())
-	if vtu.Appended.Encoding != EncodingBase64 {
+	if vtu.Appended.Encoding != encodingBase64 {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, EncodingBase64)
+			vtu.Appended.Encoding, encodingBase64)
 	}
 }
 

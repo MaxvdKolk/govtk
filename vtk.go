@@ -48,12 +48,12 @@ const (
 	formatAppended = "appended"
 
 	// Methods of encoding binary data in the VTK
-	// Note: EncodingRaw breaks XML standards.
-	EncodingRaw    = "raw"
-	EncodingBase64 = "base64"
+	// Note: encodingRaw breaks XML standards.
+	encodingRaw    = "raw"
+	encodingBase64 = "base64"
 
 	// Identifier for zlib compressed data in VTK XML
-	ZlibCompressor = "vtkZLibDataCompressor"
+	zlibCompressor = "vtkZLibDataCompressor"
 )
 
 // header of the vtu Files
@@ -139,11 +139,11 @@ func (h *Header) setAppendedData() {
 	var enc string
 	switch h.format {
 	case formatRaw:
-		enc = EncodingRaw
+		enc = encodingRaw
 	case formatBinary:
-		enc = EncodingBase64
+		enc = encodingBase64
 	default:
-		enc = EncodingBase64
+		enc = encodingBase64
 	}
 
 	if h.Appended != nil {
@@ -375,7 +375,7 @@ func CompressedLevel(level int) Option {
 			return nil
 		}
 
-		h.Compression = ZlibCompressor // todo update names
+		h.Compression = zlibCompressor // todo update names
 		h.compressor = zlibCompression{level: level}
 		return nil
 	}
