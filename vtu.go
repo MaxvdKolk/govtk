@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 )
 
 /* todo
@@ -84,6 +85,7 @@ func newHeader(t string, opts ...Option) (*Header, error) {
 		Version:    2.0,
 		ByteOrder:  "LittleEndian",
 		Grid:       Grid{XMLName: xml.Name{Local: t}},
+		format:     FormatBinary, // improve with better default settings
 		compressor: noCompression{},
 	}
 
@@ -169,10 +171,13 @@ func (h *Header) createArray(fieldData bool) *DataArray {
 }
 
 // Set applies a set of Options to the header
-func (h *Header) Add(ops ...Option) {
+func (h *Header) Add(ops ...Option) error {
 	for _, op := range ops {
-		op(h)
+		if err := op(h); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // Add points
@@ -205,7 +210,7 @@ func Piece(opts ...func(p *Partition)) Option {
 // or cells, the data is written accordingly. For ambiguous cases, the
 // function returns an error. The PointData and CellData calls should then be
 // considered instead.
-func Data(name string, data []float64) Option {
+func Data(name string, data interface{}) Option {
 	return func(h *Header) error {
 
 		lp := h.lastPiece()
@@ -214,11 +219,12 @@ func Data(name string, data []float64) Option {
 			return fmt.Errorf("num cells == num points, cannot infer")
 		}
 
-		if len(data)%lp.NumberOfPoints == 0 {
+		n := reflect.ValueOf(data).Len()
+		if n%lp.NumberOfPoints == 0 {
 			return h.pointData(name, data)
 		}
 
-		if len(data)%lp.NumberOfCells == 0 {
+		if n%lp.NumberOfCells == 0 {
 			return h.cellData(name, data)
 		}
 
@@ -227,14 +233,14 @@ func Data(name string, data []float64) Option {
 }
 
 // PointData writes the data to point data.
-func PointData(name string, data []float64) Option {
+func PointData(name string, data interface{}) Option {
 	return func(h *Header) error {
 		return h.pointData(name, data)
 	}
 }
 
 // CellData writes the data to cell data.
-func CellData(name string, data []float64) Option {
+func CellData(name string, data interface{}) Option {
 	return func(h *Header) error {
 		return h.cellData(name, data)
 	}
@@ -457,36 +463,39 @@ func (h *Header) Write(w io.Writer) error {
 
 // pointData is the internal routine to write data along points. The function
 // returns an error if the data does not distribute over the number of points.
-func (h *Header) pointData(name string, data []float64) error {
+func (h *Header) pointData(name string, data interface{}) error {
 	lp := h.lastPiece()
 
 	if lp.PointData == nil {
 		lp.PointData = h.NewArray()
 	}
 
-	if len(data)%lp.NumberOfPoints > 0 {
+	n := reflect.ValueOf(data).Len()
+	if n%lp.NumberOfPoints > 0 {
 		return fmt.Errorf("Data does not distribute over points")
 	}
 
-	nc := len(data) / lp.NumberOfPoints
-	return lp.PointData.add(name, nc, data)
+	n /= lp.NumberOfPoints
+	return lp.PointData.add(name, n, data)
 }
 
 // cellData is the internal routine to write data along cells. The function
 // returns an error if the data does not distribute over the number of cells.
-func (h *Header) cellData(name string, data []float64) error {
+func (h *Header) cellData(name string, data interface{}) error {
 	lp := h.lastPiece()
 
 	if lp.CellData == nil {
 		lp.CellData = h.NewArray()
 	}
 
-	if len(data)%lp.NumberOfCells > 0 {
-		return fmt.Errorf("Data does not distribute over cells")
+	n := reflect.ValueOf(data).Len()
+	if n%lp.NumberOfCells > 0 {
+		return fmt.Errorf("Data does not distribute over cells, len %v got %v",
+			lp.NumberOfCells, n)
 	}
 
-	nc := len(data) / lp.NumberOfCells
-	return lp.CellData.add(name, nc, data)
+	n /= lp.NumberOfCells
+	return lp.CellData.add(name, n, data)
 }
 
 // Returns pointer to last piece in the mesh
