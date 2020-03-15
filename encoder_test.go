@@ -1,4 +1,4 @@
-package vtk
+package govtk
 
 import (
 	"bytes"
