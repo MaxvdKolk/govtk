@@ -35,7 +35,9 @@ func (nc noCompression) String() string {
 }
 
 // Satisfies the compressor interface using compress/zlib for (de)compression.
-type zlibCompression struct{}
+type zlibCompression struct {
+	level int
+}
 
 // Compress returns a compressed copy of the provided payload and updates
 // the payload's header.
@@ -43,7 +45,7 @@ func (z zlibCompression) compress(p *Payload) (*Payload, error) {
 	c := newPayload()
 
 	// zlib writer
-	writer, err := zlib.NewWriterLevel(c.body, zlib.DefaultCompression)
+	writer, err := zlib.NewWriterLevel(c.body, z.level)
 	if err != nil {
 		return nil, err
 	}
