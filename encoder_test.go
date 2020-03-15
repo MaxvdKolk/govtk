@@ -183,7 +183,7 @@ func TestEncodeBase64(t *testing.T) {
 		}
 	}
 
-	c = zlibCompression{}
+	c = zlibCompression{level: DefaultCompression}
 	for _, p := range pairs {
 		pl, err := c.compress(enc.binarise(p.val))
 		if err != nil {
