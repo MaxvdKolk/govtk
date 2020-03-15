@@ -1,4 +1,4 @@
-package vtu
+package vtk
 
 import (
 	"strings"
