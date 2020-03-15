@@ -1,6 +1,7 @@
 package vtu
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -101,9 +102,78 @@ func TestCompressionLevels(t *testing.T) {
 	}
 }
 
+func TestImageFormat(t *testing.T) {
+
+	// bounds
+	nx, ny, nz := 100, 100, 100
+
+	// settings
+	opts := make([]Option, 0, 0)
+	opts = append(opts, WholeExtent(0, nx, 0, ny, 0, nz))
+	opts = append(opts, Spacing(0.1, 0.1, 0.1))
+	opts = append(opts, Origin(0, 0, 0))
+	opts = append(opts, Raw(), CompressedLevel(NoCompression))
+
+	// coordinates
+	coords := make([]float64, 0, 0)
+	xc := make([]float64, 0, 0)
+	yc := make([]float64, 0, 0)
+	zc := make([]float64, 0, 0)
+	for k := 0; k < nx+1; k++ {
+		for j := 0; j < ny+1; j++ {
+			for i := 0; i < nz+1; i++ {
+				coords = append(coords, float64(i))
+				coords = append(coords, float64(j))
+				coords = append(coords, float64(k))
+				xc = append(xc, float64(i))
+				yc = append(yc, float64(i))
+				zc = append(zc, float64(i))
+			}
+		}
+	}
+
+	// cell data
+	cdint := make([]int, nx*ny*nz)
+	cdint32 := make([]int32, nx*ny*nz)
+	cdfloat := make([]float64, nx*ny*nz)
+	for i, _ := range cdint {
+		cdint[i] = int(i)
+		cdint32[i] = int32(i)
+		cdfloat[i] = float64(i)
+	}
+
+	// assign data
+	im, err := Image(opts...)
+	if err != nil {
+		t.Errorf("Problem setting options %v", err)
+	}
+
+	if err := im.Add(Data("C", coords)); err != nil {
+		t.Errorf("Problem adding point data %v", err)
+	}
+
+	if err := im.Add(Data("B", coords)); err != nil {
+		t.Errorf("Problem adding point data %v", err)
+	}
+
+	if err := im.Add(Data("cdi", cdint)); err != nil {
+		t.Errorf("Problem adding int cell data %v", err)
+	}
+
+	if err := im.Add(Data("cdi32", cdint32)); err != nil {
+		t.Errorf("Problem adding int cell data %v", err)
+	}
+
+	if err := im.Add(Data("cdf", cdfloat)); err != nil {
+		t.Errorf("Problem adding float cell data %v", err)
+	}
+
+	im.Save("image.vti")
+}
+
 func TestImage(t *testing.T) {
 
-	nx, ny, nz := 20, 20, 20
+	nx, ny, nz := 10, 10, 10
 
 	coords := make([]float64, 0, 0)
 	xc := make([]float64, 0, 0)
@@ -136,68 +206,87 @@ func TestImage(t *testing.T) {
 
 	fmt.Println("asci...")
 	// image file
-	str := Image(asc...)
+	str, _ := Image(asc...)
 	//	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
 
 	//str.Add(FieldData("F", []float64{1.0}))
-
 	str.Save("im.vti")
+
+	var buf bytes.Buffer
+	str.Write(&buf)
+
+	fmt.Println("len", len(buf.Bytes()))
+
+	decoded := xml.NewDecoder(&buf)
+
+	dim, _ := Image()
+
+	err := decoded.Decode(dim)
+	fmt.Println("err", err)
+	fmt.Println("dim", dim, str)
+
 	fmt.Println("done asci...")
 
-	//bin := append(opts, Binary(), CompressedLevel(zlib.BestCompression), Appended())
-	//bin := append(opts, Bin, Appended())ary(), Appended())
-	bin := append(opts, Raw(), Compressed())
-	//bin := append(opts, Binary(), Compressed())
-	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
-	fmt.Println("binary...")
-	str = Image(bin...)
+	bin := append(opts, Binary())
+	str, err = Image(bin...)
 	str.Add(FieldData("F", []float64{1.0}))
 	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
-	str.Save("bim.vti")
-	fmt.Println("done binary...")
+	str.Save("binary.vti")
 
-	os.Exit(1)
+	bin = append(opts, Binary(), Appended())
+	str, _ = Image(bin...)
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	str.Add(Data("C", coords), Data("B", coords))
+	str.Save("binary_appended.vti")
 
-	//bin = append(opts, Binary())
+	bin = append(opts, Binary(), Appended(), Compressed())
+	str, _ = Image(bin...)
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	str.Add(Data("C", coords), Data("B", coords))
+	str.Save("binary_appended_compressed.vti")
+
 	bin = append(opts, Binary(), Compressed())
-	//bin := append(opts, Binary(), Appended())
-	//bin := append(opts, Binary(), Compressed())
-	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
-	str = Image(bin...)
+	str, _ = Image(bin...)
 	str.Add(FieldData("F", []float64{1.0}))
 	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
-	str.Save("bim2.vti")
+	str.Save("binary_compressed.vti")
+
+	bin = append(opts, Raw())
+	str, _ = Image(bin...)
+	str.Add(FieldData("F", []float64{1.0}))
+	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	str.Add(Data("C", coords), Data("B", coords))
+	str.Save("binary_raw.vti")
 
 	bin = append(opts, Raw(), Compressed())
-	//bin := append(opts, Binary(), Appended())
-	//bin := append(opts, Binary(), Compressed())
-	//bin := append(opts, Binary(), CompressedLevel(zlib.BestSpeed))
-	str = Image(bin...)
+	str, _ = Image(bin...)
 	str.Add(FieldData("F", []float64{1.0}))
 	str.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 	str.Add(Data("C", coords), Data("B", coords))
-	str.Save("bim3.vti")
+	str.Save("binary_raw_compressed.vti")
 
 	// rectilinear file
-	str = Rectilinear(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
-	str.Add(Coordinates(xc, yc, zc), PointData("C", coords))
-	str.Save("im.vtr")
+	//str = Rectilinear(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
+	//str.Add(Coordinates(xc, yc, zc), PointData("C", coords))
+	//str.Save("im.vtr")
 
-	// structured grid
-	str = Structured(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
-	str.Add(Points(coords), PointData("C", coords))
-	str.Save("im.vts")
+	//// structured grid
+	//str = Structured(WholeExtent(0, nx, 0, ny, 0, nz), Ascii())
+	//str.Add(Points(coords), PointData("C", coords))
+	//str.Save("im.vts")
 
-	t.Fail()
+	//t.Error()
 }
 
-func TestVTU(t *testing.T) {
+func oldTestVTU(t *testing.T) {
 	coords := []float64{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0}
 
-	test := Unstructured(Raw(), Compressed())
+	test, _ := Unstructured(Raw(), Compressed())
 	test.Add(FieldData("F", []float64{1.0}))
 	test.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
 
