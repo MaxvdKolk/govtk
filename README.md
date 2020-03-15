@@ -1,6 +1,8 @@
 # GoVTK
 A Go package to write data to VTK XML files. 
 
+*Note: still work in progress. Not all features are finished / implemented* 
+
 The package supports a variety of VTK XML styles to be written, 
 i.e. image data (.vti), rectilinear grids (.vtr), structured grids (.vts), and unstructured grids (*.vtu). 
 Each format allows to write the XML using ascii, base64, or binary encoding. The 
