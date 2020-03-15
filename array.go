@@ -121,6 +121,9 @@ func (da *DataArray) dataType(data interface{}) (string, error) {
 // appended to a single storage
 func (da *DataArray) add(name string, n int, data interface{}) error {
 	// encode data into payload
+	if da.encoder == nil {
+		return fmt.Errorf("Missing encoder. No format specified.")
+	}
 	payload := da.encoder.binarise(data)
 
 	// compress payload
