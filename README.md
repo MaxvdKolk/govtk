@@ -11,7 +11,7 @@ Each format allows to write the XML using ascii, base64, or binary encoding. The
 data can be compressed using ```zlib``` by means of the Go standard library ```compress/zlib```
 
 ## Installation
-Install the package (or module) 
+Install the package
 ```
 go get -u -v github.com/maxvdkolk/govtk/...
 ```
