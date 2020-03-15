@@ -39,33 +39,65 @@ func TestAppendedData(t *testing.T) {
 	}
 
 	vtu, _ = Image(Raw())
-	if vtu.Appended.Encoding != "raw" {
+	if vtu.Appended.Encoding != EncodingRaw {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, "raw")
+			vtu.Appended.Encoding, EncodingRaw)
 	}
 
 	vtu, _ = Image(Appended(), Raw())
-	if vtu.Appended.Encoding != "raw" {
+	if vtu.Appended.Encoding != EncodingRaw {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, "raw")
+			vtu.Appended.Encoding, EncodingRaw)
 	}
 
 	vtu, _ = Image(Raw(), Appended())
-	if vtu.Appended.Encoding != "raw" {
+	if vtu.Appended.Encoding != EncodingRaw {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, "raw")
+			vtu.Appended.Encoding, EncodingRaw)
 	}
 
 	vtu, _ = Image(Appended(), Binary())
-	if vtu.Appended.Encoding != "base64" {
+	if vtu.Appended.Encoding != EncodingBase64 {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, "base64")
+			vtu.Appended.Encoding, EncodingBase64)
 	}
 
 	vtu, _ = Image(Binary(), Appended())
-	if vtu.Appended.Encoding != "base64" {
+	if vtu.Appended.Encoding != EncodingBase64 {
 		t.Errorf("Wrong appended data encoding: got %v exp %v",
-			vtu.Appended.Encoding, "base64")
+			vtu.Appended.Encoding, EncodingBase64)
+	}
+}
+
+func TestCompressionLevels(t *testing.T) {
+	// ensure compressed level equal DefaultCompression
+	vtu, _ := Image(Compressed())
+	c, ok := vtu.compressor.(zlibCompression)
+	if !ok {
+		t.Errorf("Expected zlib compressor, got %T", vtu.compressor)
+	}
+
+	if c.level != DefaultCompression {
+		t.Errorf("Expected default compression: %v got: %v",
+			DefaultCompression, c.level)
+	}
+
+	// ensure level gets set
+	vtu, _ = Image(CompressedLevel(BestSpeed))
+	c, ok = vtu.compressor.(zlibCompression)
+	if !ok {
+		t.Errorf("Expected zlib compressor, got %T", vtu.compressor)
+	}
+	if c.level != BestSpeed {
+		t.Errorf("Expected default compression: %v got: %v",
+			BestSpeed, c.level)
+	}
+
+	// no compression should return a noCompressor instead
+	vtu, _ = Image(CompressedLevel(NoCompression))
+	_, ok = vtu.compressor.(noCompression)
+	if !ok {
+		t.Errorf("Expected no compressor, got %T", vtu.compressor)
 	}
 }
 
