@@ -6,6 +6,17 @@ import (
 	"io"
 )
 
+// These constants are copied from the zlib package, which are in turn copied
+// from the flat package, so that code that imports "vtu" does not also have
+// to import "compress/zlib".
+const (
+	NoCompression      = zlib.NoCompression
+	BestSpeed          = zlib.BestSpeed
+	BestCompression    = zlib.BestCompression
+	DefaultCompression = zlib.DefaultCompression
+	HuffmanOnly        = zlib.HuffmanOnly
+)
+
 // The compressor interface requires the ability to compress and
 // decompress a payload.
 type compressor interface {
