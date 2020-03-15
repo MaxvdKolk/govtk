@@ -82,7 +82,7 @@ type Option func(h *Header) error
 func newHeader(t string, opts ...Option) (*Header, error) {
 	h := &Header{
 		Type:       t,
-		Version:    2.0,
+		Version:    1.0,
 		ByteOrder:  "LittleEndian",
 		Grid:       Grid{XMLName: xml.Name{Local: t}},
 		format:     formatBinary, // improve with better default settings
