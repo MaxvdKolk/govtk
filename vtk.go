@@ -75,7 +75,6 @@ type Header struct {
 }
 
 // header options
-// todo add const of default options (i.e. compressed + base64)
 type Option func(h *Header) error
 
 // Construct new header describing the vtu file
@@ -85,8 +84,8 @@ func newHeader(t string, opts ...Option) (*Header, error) {
 		Version:    1.0,
 		ByteOrder:  "LittleEndian",
 		Grid:       Grid{XMLName: xml.Name{Local: t}},
-		format:     formatBinary, // improve with better default settings
-		compressor: noCompression{},
+		format:     formatBinary,
+		compressor: zlibCompression{},
 	}
 
 	// apply all options
