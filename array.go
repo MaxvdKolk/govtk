@@ -3,8 +3,6 @@ package govtk
 import (
 	"encoding/xml"
 	"fmt"
-	"strconv"
-	"strings"
 )
 
 // DataArray represents the inner data containers of the VTK XML structure.
@@ -183,19 +181,4 @@ func (da *dataArray) add(name string, n int, data interface{}) error {
 	da.appended.Data = append(da.appended.Data, bytes...)
 	da.Data = append(da.Data, arr)
 	return nil
-}
-
-// not sure if i like this... maybe store just as ints?
-// make changes to remove this function?
-func stringToInts(s string) []int {
-	str := strings.Split(s, " ")
-	ints := make([]int, len(str), len(str))
-	for i := 0; i < len(str); i++ {
-		f, err := strconv.ParseInt(str[i], 10, 32)
-		if err != nil {
-			panic(fmt.Sprintf("%v", err))
-		}
-		ints[i] = int(f)
-	}
-	return ints
 }

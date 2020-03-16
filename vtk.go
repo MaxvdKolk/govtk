@@ -98,10 +98,46 @@ func newHeader(t string, opts ...Option) (*Header, error) {
 	return h, nil
 }
 
+// bounds int values represent the extent of the grid or piece.
+type bounds [6]int
+
+// newBounds validates the provided values of the bounds before returing
+// the bounds. The bounds should be sorted, i.e. min before max values, and
+// should have dimensionality >= 2. If not, the function returns an error,
+// indicating a problem with the provided bounds.
+func newBounds(x0, x1, y0, y1, z0, z1 int) (bounds, error) {
+	if x0 > x1 || y0 > y1 || z0 > z1 {
+		msg := "Extent values should be sorted low - high"
+		return bounds{}, fmt.Errorf(msg)
+	}
+
+	dim := 3
+	for _, n := range [3]int{x1 - x0, y1 - y0, z1 - z0} {
+		if n == 0 {
+			dim--
+		}
+	}
+	if dim < 2 {
+		msg := "Image requires at least two dimensions"
+		return bounds{}, fmt.Errorf(msg)
+	}
+	return bounds{x0, x1, y0, y1, z0, z1}, nil
+}
+
+func (b bounds) String() string {
+	return fmt.Sprintf("%d %d %d %d %d %d",
+		b[0], b[1], b[2], b[3], b[4], b[5],
+	)
+}
+
+func (b bounds) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
+	return xml.Attr{Name: name, Value: fmt.Sprint(b)}, nil
+}
+
 // data: image or unstructured
 type Grid struct {
 	XMLName xml.Name
-	Extent  string     `xml:"WholeExtent,attr,omitempty"`
+	Extent  bounds     `xml:"WholeExtent,attr,omitempty"`
 	Origin  string     `xml:"Origin,attr,omitempty"`
 	Spacing string     `xml:"Spacing,attr,omitempty"`
 	Data    *dataArray `xml:"FieldData,omitempty"`
@@ -113,7 +149,7 @@ type Grid struct {
 // refer to a partition as a "Piece".
 type partition struct {
 	XMLName        xml.Name   `xml:"Piece"`
-	Extent         string     `xml:"Extent,attr,omitempty"`
+	Extent         bounds     `xml:"Extent,attr,omitempty"`
 	NumberOfPoints int        `xml:"NumberOfPoints,attr"`
 	NumberOfCells  int        `xml:"NumberOfCells,attr"`
 	Points         *dataArray `xml:",omitempty"` // todo seems overly verbose?
@@ -194,13 +230,15 @@ func Points(data []float64) Option {
 	}
 }
 
-func Piece(opts ...func(p *partition)) Option {
+func Piece(opts ...func(p *partition) error) Option {
 	return func(h *Header) error {
-		p := partition{}
+		p := new(partition)
 		for _, opt := range opts {
-			opt(&p)
+			if err := opt(p); err != nil {
+				return err
+			}
 		}
-		h.Grid.Pieces = append(h.Grid.Pieces, p)
+		h.Grid.Pieces = append(h.Grid.Pieces, *p)
 		return nil
 	}
 }
@@ -380,29 +418,16 @@ func CompressedLevel(level int) Option {
 	}
 }
 
+// WholeExtent sets the extent of the Image, Rectilinear, or Structured grids.
+// The extent requires a lower and upper value for each dimension, where a
+// single dimension can be left empty, e.g. x1 - x0 == 0.
 func WholeExtent(x0, x1, y0, y1, z0, z1 int) Option {
 	f := func(h *Header) error {
-		dim := 3
-		if x1-x0 == 0 {
-			dim--
+		b, err := newBounds(x0, x1, y0, y1, z0, z1)
+		if err != nil {
+			return err
 		}
-		if y1-y0 == 0 {
-			dim--
-		}
-		if z1-z0 == 0 {
-			dim--
-		}
-		if dim < 2 {
-			return fmt.Errorf("Image requires at least two dimensions")
-		}
-
-		// ensure smallest value given first
-		if x0 > x1 || y0 > y1 || z0 > z1 {
-			return fmt.Errorf("Extent values should be sorted low - high")
-		}
-
-		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)
-		h.Grid.Extent = str
+		h.Grid.Extent = b
 		return nil
 	}
 	return f
@@ -426,15 +451,19 @@ func Spacing(dx, dy, dz float64) Option {
 
 // Extent sets the part of the domain given in the current partition. This
 // should be within WholeExtent.
-func Extent(x0, x1, y0, y1, z0, z1 int) func(p *partition) {
-	f := func(p *partition) {
-		str := fmt.Sprintf("%d %d %d %d %d %d", x0, x1, y0, y1, z0, z1)
-		p.Extent = str
+func Extent(x0, x1, y0, y1, z0, z1 int) func(p *partition) error {
+	f := func(p *partition) error {
+		ext, err := newBounds(x0, x1, y0, y1, z0, z1)
+		if err != nil {
+			return err
+		}
+		p.Extent = ext
 
 		// need to detect zero elements in either direction, then we
 		// are just trying to output a single slice (e.g. 2d plane view)
 		p.NumberOfCells = (x1 - x0) * (y1 - y0) * (z1 - z0)
 		p.NumberOfPoints = (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1)
+		return nil
 	}
 	return f
 }
@@ -526,7 +555,7 @@ func (h *Header) lastPiece() *partition {
 	if len(h.Grid.Pieces) == 0 {
 		switch h.Type {
 		case imageData, rectilinearGrid, structuredGrid:
-			b := stringToInts(h.Grid.Extent)
+			b := h.Grid.Extent
 			h.Add(Piece(Extent(b[0], b[1], b[2], b[3], b[4], b[5])))
 		default:
 			h.Add(Piece())

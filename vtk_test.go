@@ -111,7 +111,7 @@ func TestImageExtent(t *testing.T) {
 			t.Errorf("Cannot setup image with extent")
 		}
 
-		if im.Grid.Extent != p.str {
+		if fmt.Sprint(im.Grid.Extent) != p.str {
 			t.Errorf("Wrong extent: got: %v, exp: %v", im.Grid.Extent, p.str)
 		}
 
