@@ -324,10 +324,18 @@ func FieldData(name string, data []float64) Option {
 	}
 }
 
+// todo clarify
+// Coordinates sets the coordinates for the rectilinear grid. These can be
+// specified in two ways: x, y, z arrays for a single dimension only. Or,
+// to provide the coordinates for all points as larger arrays
 func Coordinates(x, y, z []float64) Option {
 	return func(h *Header) error {
-		lp := h.lastPiece()
+		if h.Type != rectilinearGrid {
+			return fmt.Errorf("Coordinates only apply to format %v",
+				rectilinearGrid)
+		}
 
+		lp := h.lastPiece()
 		if lp.Coordinates != nil {
 			return fmt.Errorf("Coordinates already set")
 		}
