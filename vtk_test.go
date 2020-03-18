@@ -7,6 +7,47 @@ import (
 	"testing"
 )
 
+// Test some valid and invalid bounds. Ensure invalid bounds return err.
+func TestBounds(t *testing.T) {
+	// should succeed
+	vals := []bounds{
+		bounds{0, 1, 0, 1, 0, 1},
+		bounds{-1, 0, -1, 0, -1, 0},
+		bounds{0, 0, 0, 1, 0, 1},
+		bounds{0, 1, 0, 0, 0, 1},
+		bounds{0, 1, 0, 1, 0, 0},
+	}
+	for _, v := range vals {
+		b, err := newBounds(v[0], v[1], v[2], v[3], v[4], v[5])
+		if err != nil {
+			t.Errorf("Error processing bounds: %v", v)
+		}
+		for i, _ := range b {
+			if b[i] != v[i] {
+				t.Errorf("Wrong bounds, got: %v, exp: %v", b[i], v[i])
+			}
+		}
+	}
+
+	// should fail
+	vals = []bounds{
+		bounds{1, 0, 0, 1, 0, 1},
+		bounds{0, 1, 1, 0, 0, 1},
+		bounds{0, 1, 0, 1, 1, 0},
+		bounds{1, 1, 1, 1, 1, 0},
+		bounds{0, 1, 1, 1, 1, 1},
+		bounds{1, 1, 0, 1, 1, 1},
+		bounds{0, 0, 0, 0, 0, 0},
+		bounds{-1, -1, -1, -1, -1, -1},
+	}
+	for _, v := range vals {
+		_, err := newBounds(v[0], v[1], v[2], v[3], v[4], v[5])
+		if err == nil {
+			t.Errorf("Invalid bound has nil error %v", v)
+		}
+	}
+}
+
 func TestAppendedData(t *testing.T) {
 	vtu, _ := Image(Appended())
 
