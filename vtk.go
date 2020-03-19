@@ -124,6 +124,28 @@ func newBounds(x0, x1, y0, y1, z0, z1 int) (bounds, error) {
 	return bounds{x0, x1, y0, y1, z0, z1}, nil
 }
 
+// evaluates the number of cells based on the extent of the domain
+func (b bounds) numCells() int {
+	nc := 1
+	for i := 0; i < len(b); i += 2 {
+		if b[i+1]-b[i] > 0 {
+			nc *= (b[i+1] - b[i])
+		}
+	}
+	return nc
+}
+
+// evaluates the number of points based on the extent of the domain
+func (b bounds) numPoints() int {
+	np := 1
+	for i := 0; i < len(b); i += 2 {
+		if b[i+1]-b[i] > 0 {
+			np *= (b[i+1] - b[i] + 1)
+		}
+	}
+	return np
+}
+
 func (b bounds) String() string {
 	return fmt.Sprintf("%d %d %d %d %d %d",
 		b[0], b[1], b[2], b[3], b[4], b[5],
@@ -467,10 +489,9 @@ func Extent(x0, x1, y0, y1, z0, z1 int) func(p *partition) error {
 		}
 		p.Extent = ext
 
-		// need to detect zero elements in either direction, then we
-		// are just trying to output a single slice (e.g. 2d plane view)
-		p.NumberOfCells = (x1 - x0) * (y1 - y0) * (z1 - z0)
-		p.NumberOfPoints = (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1)
+		// update dimensionality
+		p.NumberOfCells = p.Extent.numCells()
+		p.NumberOfPoints = p.Extent.numPoints()
 		return nil
 	}
 	return f
