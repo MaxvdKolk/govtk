@@ -346,40 +346,51 @@ func FieldData(name string, data []float64) Option {
 	}
 }
 
-// todo clarify
-// Coordinates sets the coordinates for the rectilinear grid. These can be
-// specified in two ways: x, y, z arrays for a single dimension only. Or,
-// to provide the coordinates for all points as larger arrays
-func Coordinates(x, y, z []float64) Option {
+// Coordinates sets the coordinates for the rectilinear grid. The function
+// accepts a variadic number of empty interfaces, however, we can only deal
+// with (x, y), or (x, y, z) values. The first two being a two and
+// three-dimensional version where the individual coordinates x, y, and possibly
+// z are provided.
+//
+// The vectors are expected to have length nx, ny, nz respectively.
+func Coordinates(xyz ...interface{}) Option {
 	return func(h *Header) error {
 		if h.Type != rectilinearGrid {
 			return fmt.Errorf("Coordinates only apply to format %v",
 				rectilinearGrid)
 		}
 
+		if len(xyz) == 0 || len(xyz) > 3 {
+			msg := "Coordinates accepts 1 to 3 vectors, got: %d"
+			return fmt.Errorf(msg, len(xyz))
+		}
+
 		lp := h.lastPiece()
 		if lp.Coordinates != nil {
 			return fmt.Errorf("Coordinates already set")
 		}
-
-		lp.NumberOfPoints = len(x)
 		lp.Coordinates = h.NewArray()
 
-		err := lp.Coordinates.add("x_coordinates", 1, x)
-		if err != nil {
-			return err
-		}
+		dim := []string{"x", "y", "z"}
 
-		err = lp.Coordinates.add("y_coordinates", 1, y)
-		if err != nil {
-			return err
-		}
+		for i, v := range xyz {
 
-		err = lp.Coordinates.add("z_coordinates", 1, z)
-		if err != nil {
-			return err
-		}
+			// length data vs num points for dimension i
+			l := reflect.ValueOf(v).Len()
+			n := h.Grid.Extent[2*i+1] - h.Grid.Extent[2*i] + 1
 
+			if l != n {
+				msg := "Unexpected number of coordinates: %v, exp: %v"
+				msg += " for dimension %s"
+				return fmt.Errorf(msg, l, n, dim[i])
+			}
+
+			field := fmt.Sprintf("%s_coordinates", dim[i])
+			err := lp.Coordinates.add(field, 1, v)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 }
