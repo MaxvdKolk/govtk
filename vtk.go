@@ -125,6 +125,17 @@ func newBounds(x0, x1, y0, y1, z0, z1 int) (bounds, error) {
 	return bounds{x0, x1, y0, y1, z0, z1}, nil
 }
 
+// zeroDim returns the index of the zeroth dimension in the bounds. In case
+// all dimensions are non-zero, the function returns -1
+func (b bounds) zeroDim() int {
+	for i := 0; i < len(b); i += 2 {
+		if b[i+1]-b[i] == 0 {
+			return i / 2
+		}
+	}
+	return -1
+}
+
 // evaluates the number of cells based on the extent of the domain
 func (b bounds) numCells() int {
 	nc := 1
@@ -238,7 +249,13 @@ func (h *Header) Add(ops ...Option) error {
 	return nil
 }
 
-// Add points
+// Points adds a st of coordinates to the structured grid. The points can be
+// provided either as a single slice ordered x, y, z per point. Alternatively,
+// the three components can be given individually, i.e. x y z as similar to
+// rectilinear grids. These three components are the interleaved to obtain
+// the right ordering. Finally, it is possible to provide only two out of
+// three coordinates, e.g. x and z. In this case, the missing set of
+// coordinates are filled with zeros.
 func Points(xyz ...interface{}) Option {
 	return func(h *Header) error {
 		lp := h.lastPiece()
@@ -253,7 +270,25 @@ func Points(xyz ...interface{}) Option {
 			return lp.Points.add("Points", l, xyz[0])
 		}
 
-		return fmt.Errorf("interleaving not yet added")
+		// when only two out of three dimensions are given, we need
+		// to insert zeros for the third dimension to satisfy the
+		// structuredgrid format
+		if len(xyz) == 2 {
+			dat, err := interleave(h.Grid.Extent, xyz...)
+			if err != nil {
+				return err
+			}
+			l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
+			return lp.Points.add("Points", l, dat)
+		}
+
+		// three dimensional data
+		dat, err := interleave(h.Grid.Extent, xyz...)
+		if err != nil {
+			return err
+		}
+		l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
+		return lp.Points.add("Points", l, dat)
 	}
 }
 
@@ -608,4 +643,75 @@ func (h *Header) lastPiece() *partition {
 	}
 
 	return &h.Grid.Pieces[len(h.Grid.Pieces)-1]
+}
+
+// Splice inserts the empty interface z in the slice of empty interfaces
+// xyz at the given index idx. If the index is not inside the expected bounds,
+// i.e. 0 <= idx < 3, the original slice of interfaces is returned.
+// todo(max) there must be a more elegant way for this?
+func splice(idx int, xyz []interface{}, z interface{}) []interface{} {
+	s := make([]interface{}, 3)
+	switch idx {
+	case 0:
+		s[0], s[1], s[2] = z, xyz[0], xyz[1]
+	case 1:
+		s[0], s[1], s[2] = xyz[0], z, xyz[1]
+	case 2:
+		s[0], s[1], s[2] = xyz[0], xyz[1], z
+	default:
+		return xyz
+	}
+	return s
+}
+
+// Interleave merges the xyz ...interface into a single slice. This is done
+// to achieve the required ordering of: x0y0z0, x1y0z0, ... etc. The function
+// requires the extent of the data to deterime the expected (and required)
+// number of points. Both to allocate the expected result, as well as,
+// to allocate any zeros that need to be inserted.
+func interleave(extent bounds, xyz ...interface{}) (interface{}, error) {
+
+	np := extent.numPoints()
+
+	switch xyz[0].(type) {
+	case []int:
+
+		if len(xyz) == 2 {
+			z := make([]int, np)
+			xyz = splice(extent.zeroDim(), xyz, z)
+		}
+
+		res := make([]int, np*len(xyz))
+
+		for dim, x := range xyz {
+			if _, ok := x.([]int); !ok {
+				return nil, fmt.Errorf("Cannot cast %T to int", x)
+			}
+			for i, v := range x.([]int) {
+				res[i*len(xyz)+dim] = v
+			}
+		}
+		return res, nil
+	case []float64:
+
+		if len(xyz) == 2 {
+			z := make([]float64, np)
+			xyz = splice(extent.zeroDim(), xyz, z)
+		}
+
+		res := make([]float64, np*len(xyz))
+
+		for dim, x := range xyz {
+			if _, ok := x.([]float64); !ok {
+				return nil, fmt.Errorf("Cannot cast %T to float", x)
+			}
+			for i, v := range x.([]float64) {
+				res[i*len(xyz)+dim] = v
+			}
+		}
+		return res, nil
+	default:
+		msg := "interleave is not implemented for type '%T'"
+		return nil, fmt.Errorf(msg, xyz[0])
+	}
 }
