@@ -80,12 +80,13 @@ type Option func(h *Header) error
 // Construct new header describing the vtu file
 func newHeader(t string, opts ...Option) (*Header, error) {
 	h := &Header{
-		Type:       t,
-		Version:    1.0,
-		ByteOrder:  "LittleEndian",
-		Grid:       Grid{XMLName: xml.Name{Local: t}},
-		format:     formatBinary,
-		compressor: zlibCompression{},
+		Type:      t,
+		Version:   1.0,
+		ByteOrder: "LittleEndian",
+		Grid:      Grid{XMLName: xml.Name{Local: t}},
+		format:    formatBinary,
+		//compressor: zlibCompression{},
+		compressor: noCompression{},
 	}
 
 	// apply all options
@@ -238,17 +239,21 @@ func (h *Header) Add(ops ...Option) error {
 }
 
 // Add points
-func Points(data []float64) Option {
+func Points(xyz ...interface{}) Option {
 	return func(h *Header) error {
 		lp := h.lastPiece()
-
 		if lp.Points != nil {
 			return fmt.Errorf("Points allready set")
 		}
-
 		lp.Points = h.NewArray()
-		lp.NumberOfPoints = len(data) / 3
-		return lp.Points.add("Points", 3, data)
+
+		// x0y0z0 ... xny0z0 x0y1z0 ... etc (todo clarify)
+		if len(xyz) == 1 {
+			l := reflect.ValueOf(xyz[0]).Len() / lp.NumberOfPoints
+			return lp.Points.add("Points", l, xyz[0])
+		}
+
+		return fmt.Errorf("interleaving not yet added")
 	}
 }
 
