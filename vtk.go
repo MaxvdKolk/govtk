@@ -355,29 +355,43 @@ func CellData(name string, data interface{}) Option {
 	}
 }
 
-func Cells(conn [][]int) Option {
+// Cells sets the element connectivity of the cell in the unstructured grid.
+// The cells are represented with three integer slices:
+// - conn: points to coordinates (set by Points)
+// - offsets: indicating starting point of each cell in conn
+// - labels: element type labels for each cell (len(offsets)-1)
+//
+// The user can provide a map[int]int to map the provided labels to the
+// corresponding VTK element types. This map is set by SetLabelType().
+func Cells(conn, offset, labels []int) Option {
 	return func(h *Header) error {
 		lp := h.lastPiece()
 
-		if len(lp.Cells.Data) != 0 {
+		if lp.Cells != nil {
 			return fmt.Errorf("Connectivity already set")
 		}
-
-		lp.NumberOfCells = len(conn)
 		lp.Cells = h.NewArray()
 
-		err := lp.Cells.add("connectivity", 1, conn[0])
-		if err != nil {
+		// need to assert lengths probably...
+		lp.NumberOfCells = len(labels)
+
+		if err := lp.Cells.add("connectivity", 1, conn); err != nil {
 			return err
 		}
 
-		err = lp.Cells.add("offsets", 1, []int{len(conn[0])})
-		if err != nil {
+		if offset[0] == 0 {
+			// the format does not require a leading zero
+			offset = offset[1:]
+		}
+		if err := lp.Cells.add("offsets", 1, offset); err != nil {
 			return err
 		}
 
-		err = lp.Cells.add("types", 1, []int{10})
+		labels, err := h.mapLabelToType(labels)
 		if err != nil {
+			return err
+		}
+		if err := lp.Cells.add("types", 1, labels); err != nil {
 			return err
 		}
 
