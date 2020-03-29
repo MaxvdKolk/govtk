@@ -1,11 +1,35 @@
 package govtk
 
 import (
-	"encoding/xml"
 	"fmt"
 	"os"
 	"testing"
 )
+
+func TestNumCellsPoints(t *testing.T) {
+	type pair struct {
+		b      bounds
+		nc, np int
+	}
+	pairs := []pair{
+		pair{b: bounds{0, 1, 0, 1, 0, 1}, nc: 1, np: 2 * 2 * 2},
+		pair{b: bounds{0, 1, 0, 0, 0, 1}, nc: 1, np: 2 * 2},
+		pair{b: bounds{0, 4, 0, 4, 0, 4}, nc: 4 * 4 * 4, np: 5 * 5 * 5},
+	}
+	for _, p := range pairs {
+		nc := p.b.numCells()
+		if nc != p.nc {
+			msg := "Wrong number of cells: got %v, exp %v"
+			t.Errorf(msg, nc, p.nc)
+		}
+
+		np := p.b.numPoints()
+		if np != p.np {
+			msg := "Wrong number of points: got %v, exp %v"
+			t.Errorf(msg, np, p.np)
+		}
+	}
+}
 
 // Test some valid and invalid bounds. Ensure invalid bounds return err.
 func TestBounds(t *testing.T) {
@@ -346,139 +370,37 @@ func TestImage(t *testing.T) {
 	//t.Error()
 }
 
-func oldTestVTU(t *testing.T) {
-	coords := []float64{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0}
+func TestUnstructured(t *testing.T) {
+	coords := []float64{
+		0.0, 0.0, 0.0,
+		1.0, 0.0, 0.0,
+		0.0, 1.0, 0.0,
+		0.0, 0.0, 1.0,
+		-1.0, 0.0, 0.0,
+		0.0, -1.0, 0.0,
+		0.0, 0.0, -1.0}
 
-	test, _ := Unstructured(Raw(), Compressed())
-	test.Add(FieldData("F", []float64{1.0}))
-	test.Add(FieldData("G", []float64{1.0, 2.0, 3.0}))
+	labelType := make(map[int]int)
+	labelType[20] = Tetra
 
-	test.Add(Piece())
-	test.Add(Points(coords))
-	conn := make([][]int, 1)
-	conn[0] = []int{0, 1, 2, 3}
-
-	test.Add(Cells(conn))
-
-	test.Add(CellData("Test", []float64{1.0, 3.0}))
-	test.Add(PointData("P", []float64{1.0, 3.0, 2.0, 4.0}))
-
-	f, err := os.Create("env.vtu")
+	vtu, err := Unstructured(Raw(), Compressed(), SetLabelType(labelType))
 	if err != nil {
-		panic("error")
-	}
-	defer f.Close()
-
-	enc := xml.NewEncoder(f)
-	err = enc.Encode(test)
-	if err != nil {
-		fmt.Println(err)
-		panic("error")
+		t.Error(err)
 	}
 
-	test.Add(Piece())
-	for i := 0; i < len(coords); i++ {
-		coords[i] += 3.0
+	if err := vtu.Add(Points(coords)); err != nil {
+		t.Error(err)
 	}
 
-	test.Add(Points(coords))
-	test.Add(Cells(conn))
+	conn := []int{0, 1, 2, 3, 0, 4, 5, 6}
+	offset := []int{0, 4, 8}
+	labels := []int{20, 20}
 
-	test.Add(CellData("Test", []float64{2.0, 2.0}))
-	test.Add(PointData("P", []float64{1.0, 3.0, 2.0, 4.0}))
-	test.Add(FieldData("F", []float64{1.0}))
-
-	test.Add(Piece())
-	for i := 0; i < len(coords); i++ {
-		coords[i] -= 6.0
-	}
-	test.Add(Points(coords))
-	test.Add(Cells(conn))
-
-	test.Add(CellData("Test", []float64{3.0, 1.0}))
-	test.Add(PointData("P", []float64{1.0, 3.0, 2.0, 4.0}))
-	test.Add(FieldData("F", []float64{1.0}))
-
-	enc = xml.NewEncoder(os.Stdout)
-	//enc.Indent("  ", "    ")
-	//if err := enc.Encode(test); err != nil {
-	//	fmt.Printf("error: %v\n", err)
-	//}
-
-	f, err = os.Create("env.vtu")
-	if err != nil {
-		panic("error")
-	}
-	defer f.Close()
-
-	enc = xml.NewEncoder(f)
-	err = enc.Encode(test)
-	if err != nil {
-		panic("error")
+	if err := vtu.Add(Cells(conn, offset, labels)); err != nil {
+		t.Error(err)
 	}
 
-	t.Fail()
+	if err := vtu.Save("unstr.vtu"); err != nil {
+		t.Error(err)
+	}
 }
-
-/*
-// some API calls
-
-// consequetive points
-points = [x, y, z, x, y, z] etc
-// separate points
-x = [x x x...]
-y = [y y y...]
-z = [z z z...]
-
-// either the file is structured and we can use image data
-vti := vtu.Image()
-- domain bounding box, xmin, xmax etc
-- number of points each dimension
-
-// or the file is unstructred and we can completely unstructured data
-vtu := vtu.Unstructured(np, nc)
-- points, x, y, z, components
-- cells + full connnectivity data
-- offets, but maybe we can infer from connectivity?
-- types, but maybe we can infer from connectivity?
-
-// parallel files are just a wrapper on top of serial files, i.e. a header with
-pointers to other files
-
-
-// simple api for images
-file := vtu.Image(origin, extend, spacing)
-	file.AddPiece(extend)
-		file.AddScalar(name, data)
-			<DataArray>
-		file.AddVector(name, data)
-			<DataArray>
-		file.AddTensor(name, data)
-			<DataArray>
-file.Save(filename)
-
-// simple api for unstruc
-file := vtu.Unstructred()
-
-	file.AddPiece(npoints, ncells)
-		file.Points(points)
-		file.Connectivity(conn)
-		file.AddScalar(name, data)
-		file.AddVector(name, data)
-		file.AddTensor(name, data)
-
-	file.AddPiece(npoints, ncells)
-		file.Points(points)
-			<DataArray>
-		file.Connectivity(conn)
-			<DataArray>, <DataArray>, <DataArray>
-		file.AddScalar(name, data)
-			<DataArray>
-		file.AddVector(name, data)
-			<DataArray>
-		file.AddTensor(name, data)
-			<DataArray>
-
-file.Save(filename)
-
-*/
