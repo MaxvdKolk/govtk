@@ -259,6 +259,20 @@ func (h *Header) Add(ops ...Option) error {
 	return nil
 }
 
+func Points(xyz ...interface{}) Option {
+	return func(h *Header) error {
+		switch h.Type {
+		case rectilinearGrid:
+			return h.coordinates(xyz...)
+		case structuredGrid:
+			return h.structuredPoints(xyz...)
+		case unstructuredGrid:
+			return h.unstructuredPoints(xyz...)
+		}
+		return nil
+	}
+}
+
 // Points adds a st of coordinates to the structured grid. The points can be
 // provided either as a single slice ordered x, y, z per point. Alternatively,
 // the three components can be given individually, i.e. x y z as similar to
@@ -266,33 +280,23 @@ func (h *Header) Add(ops ...Option) error {
 // the right ordering. Finally, it is possible to provide only two out of
 // three coordinates, e.g. x and z. In this case, the missing set of
 // coordinates are filled with zeros.
-func Points(xyz ...interface{}) Option {
-	return func(h *Header) error {
-		lp := h.lastPiece()
-		if lp.Points != nil {
-			return fmt.Errorf("Points allready set")
-		}
-		lp.Points = h.NewArray()
+func (h *Header) structuredPoints(xyz ...interface{}) error {
+	lp := h.lastPiece()
+	if lp.Points != nil {
+		return fmt.Errorf("Points allready set")
+	}
+	lp.Points = h.NewArray()
 
-		// x0y0z0 ... xny0z0 x0y1z0 ... etc (todo clarify)
-		if len(xyz) == 1 {
-			l := reflect.ValueOf(xyz[0]).Len() / lp.NumberOfPoints
-			return lp.Points.add("Points", l, xyz[0])
-		}
+	// x0y0z0 ... xny0z0 x0y1z0 ... etc (todo clarify)
+	if len(xyz) == 1 {
+		l := reflect.ValueOf(xyz[0]).Len() / lp.NumberOfPoints
+		return lp.Points.add("Points", l, xyz[0])
+	}
 
-		// when only two out of three dimensions are given, we need
-		// to insert zeros for the third dimension to satisfy the
-		// structuredgrid format
-		if len(xyz) == 2 {
-			dat, err := interleave(h.Grid.Extent, xyz...)
-			if err != nil {
-				return err
-			}
-			l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
-			return lp.Points.add("Points", l, dat)
-		}
-
-		// three dimensional data
+	// when only two out of three dimensions are given, we need
+	// to insert zeros for the third dimension to satisfy the
+	// structuredgrid format
+	if len(xyz) == 2 {
 		dat, err := interleave(h.Grid.Extent, xyz...)
 		if err != nil {
 			return err
@@ -300,6 +304,36 @@ func Points(xyz ...interface{}) Option {
 		l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
 		return lp.Points.add("Points", l, dat)
 	}
+
+	// three dimensional data
+	dat, err := interleave(h.Grid.Extent, xyz...)
+	if err != nil {
+		return err
+	}
+	l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
+	return lp.Points.add("Points", l, dat)
+}
+
+// unstructuredPoints adds a set of coordinates to the unstructured grid.
+// difference from the rectilinearPoints or Coordinates as the number of
+// points need to be inferred from the data, there is no extent that we
+// can refer to
+func (h *Header) unstructuredPoints(xyz ...interface{}) error {
+	lp := h.lastPiece()
+	if lp.Points != nil {
+		return fmt.Errorf("Points allready set")
+	}
+	lp.Points = h.NewArray()
+
+	// todo fix lengths for 2d/3d
+	// todo add functionality for separate x, y, z values
+
+	if len(xyz) == 1 {
+		lp.NumberOfPoints = reflect.ValueOf(xyz[0]).Len() / 3
+		return lp.Points.add("Points", 3, xyz[0])
+	}
+
+	return nil
 }
 
 func Piece(opts ...func(p *partition) error) Option {
@@ -445,53 +479,51 @@ func FieldData(name string, data []float64) Option {
 	}
 }
 
-// Coordinates sets the coordinates for the rectilinear grid. The function
+// coordinates sets the coordinates for the rectilinear grid. The function
 // accepts a variadic number of empty interfaces, however, we can only deal
 // with (x, y), or (x, y, z) values. The first two being a two and
 // three-dimensional version where the individual coordinates x, y, and possibly
 // z are provided.
 //
 // The vectors are expected to have length nx, ny, nz respectively.
-func Coordinates(xyz ...interface{}) Option {
-	return func(h *Header) error {
-		if h.Type != rectilinearGrid {
-			return fmt.Errorf("Coordinates only apply to format %v",
-				rectilinearGrid)
-		}
-
-		if len(xyz) == 0 || len(xyz) > 3 {
-			msg := "Coordinates accepts 1 to 3 vectors, got: %d"
-			return fmt.Errorf(msg, len(xyz))
-		}
-
-		lp := h.lastPiece()
-		if lp.Coordinates != nil {
-			return fmt.Errorf("Coordinates already set")
-		}
-		lp.Coordinates = h.NewArray()
-
-		dim := []string{"x", "y", "z"}
-
-		for i, v := range xyz {
-
-			// length data vs num points for dimension i
-			l := reflect.ValueOf(v).Len()
-			n := h.Grid.Extent[2*i+1] - h.Grid.Extent[2*i] + 1
-
-			if l != n {
-				msg := "Unexpected number of coordinates: %v, exp: %v"
-				msg += " for dimension %s"
-				return fmt.Errorf(msg, l, n, dim[i])
-			}
-
-			field := fmt.Sprintf("%s_coordinates", dim[i])
-			err := lp.Coordinates.add(field, 1, v)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+func (h *Header) coordinates(xyz ...interface{}) error {
+	if h.Type != rectilinearGrid {
+		return fmt.Errorf("Coordinates only apply to format %v",
+			rectilinearGrid)
 	}
+
+	if len(xyz) == 0 || len(xyz) > 3 {
+		msg := "Coordinates accepts 1 to 3 vectors, got: %d"
+		return fmt.Errorf(msg, len(xyz))
+	}
+
+	lp := h.lastPiece()
+	if lp.Coordinates != nil {
+		return fmt.Errorf("Coordinates already set")
+	}
+	lp.Coordinates = h.NewArray()
+
+	dim := []string{"x", "y", "z"}
+
+	for i, v := range xyz {
+
+		// length data vs num points for dimension i
+		l := reflect.ValueOf(v).Len()
+		n := h.Grid.Extent[2*i+1] - h.Grid.Extent[2*i] + 1
+
+		if l != n {
+			msg := "Unexpected number of coordinates: %v, exp: %v"
+			msg += " for dimension %s"
+			return fmt.Errorf(msg, l, n, dim[i])
+		}
+
+		field := fmt.Sprintf("%s_coordinates", dim[i])
+		err := lp.Coordinates.add(field, 1, v)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Ascii() Option {
