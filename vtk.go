@@ -8,32 +8,6 @@ import (
 	"reflect"
 )
 
-/* todo
-would it be an idea to separate the pacakge more strictly..., it could
-also be possible to see this as a "vtu" writer package... Something that
-solely writes out vtu packages and does not require the mesh, nor contains
-functions that specifically writes the mesh. That should be inmplemented
-inside the mesh part...?
-
-similarly for the xdf? all that can be separate entities that write out
-information to files...
-*/
-
-// todo add mapping of types
-//var gmshToVTK = map[int]int{
-//	1:  3,
-//	2:  5,
-//	3:  9,
-//	4:  10,
-//	5:  12,
-//	8:  21,
-//	9:  22,
-//	11: 24,
-//	15: 1,
-//	16: 23,
-//}
-
-// we could make a type vtktype string?
 const (
 	// VTK XML types.
 	imageData        = "ImageData"
