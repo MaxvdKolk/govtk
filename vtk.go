@@ -69,7 +69,7 @@ type Header struct {
 	Type        string   `xml:"type,attr"`
 	Version     float64  `xml:"version,attr"`
 	ByteOrder   string   `xml:"byte_order,attr"`
-	HeaderType  string   `xml:"header_type,attr,omitempty"` // todo do is this req?
+	HeaderType  string   `xml:"header_type,attr,omitempty"`
 	Compression string   `xml:"compressor,attr,omitempty"`
 	Grid        Grid
 	Appended    *darray
