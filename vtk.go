@@ -77,6 +77,9 @@ type Header struct {
 	format     string
 	compressor compressor
 
+	// maps user's element label towards vtk's element type
+	labelType map[int]int
+
 	// On true writes Legacy (*.vtk) format
 	legacy bool
 }
@@ -380,6 +383,41 @@ func Cells(conn [][]int) Option {
 
 		return nil
 	}
+}
+
+// SetLabelType sets the labelType map in the header. The labelType is used
+// in unstructured grids to map the user's provided element labels towards
+// the internal labeling.
+func SetLabelType(labelType map[int]int) Option {
+	return func(h *Header) error {
+		if labelType != nil {
+			h.labelType = labelType
+			return nil
+		}
+		return fmt.Errorf("Empty map labelType provided")
+	}
+}
+
+// mapLabelToType maps the user's element labels towards the inter numbering
+// by mapping the labels using the labelType set with SetLabelType.
+//
+// For an emtpy map, the function returns the unmodified, original labels.
+func (h *Header) mapLabelToType(labels []int) ([]int, error) {
+	if h.labelType == nil || len(labels) == 0 {
+		return labels, nil
+	}
+
+	// writes a copy of the array, do not modify originals
+	types := make([]int, len(labels))
+
+	for i, label := range labels {
+		t, ok := h.labelType[label]
+		if !ok {
+			return nil, fmt.Errorf("No map for label '%d'", label)
+		}
+		types[i] = t
+	}
+	return types, nil
 }
 
 func FieldData(name string, data []float64) Option {
