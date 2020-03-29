@@ -30,6 +30,39 @@ const (
 	zlibCompressor = "vtkZLibDataCompressor"
 )
 
+// Linear cell types in VTK
+//
+// Refer to Fig.2 https://vtk.org/wp-content/uploads/2015/04/file-formats.pdf
+// for the local element numbering
+const (
+	Vertex = iota + 1
+	PolyVertex
+	Line
+	PolyLine
+	Triangle
+	TriangleStrip
+	Polygon
+	Pixel
+	Quad
+	Tetra
+	Voxel
+	Hexahedron
+	Wedge
+	Pyramid
+)
+
+// Non-linear cell types in VTK
+//
+// Refer to Fig.3 https://vtk.org/wp-content/uploads/2015/04/file-formats.pdf
+// for the local element numbering
+const (
+	QuadraticEdge = iota + 21
+	QuadraticTriangle
+	QuadraticQuad
+	QuadraticTetra
+	QuadraticHexahedron
+)
+
 // header of the vtu Files
 type Header struct {
 	XMLName     xml.Name `xml:"VTKFile"`
