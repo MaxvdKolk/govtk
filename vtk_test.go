@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+func TestPreventDuplicateFieldNames(t *testing.T) {
+	vtu, err := Image(WholeExtent(0, 1, 0, 1, 0, 1))
+	if err != nil {
+		t.Error(err)
+	}
+
+	// insert a field with name str
+	str := "test_name"
+	err = vtu.Add(Data(str, []int{1}))
+	if err != nil {
+		t.Error(err)
+	}
+
+	// expect error for adding the same field
+	err = vtu.Add(Data(str, []int{1}))
+	if err == nil {
+		t.Errorf("no duplicates: %v", err)
+	}
+}
+
 func TestNumCellsPoints(t *testing.T) {
 	type pair struct {
 		b      bounds

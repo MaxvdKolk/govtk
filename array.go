@@ -118,6 +118,12 @@ func (da *dataArray) dataType(data interface{}) (string, error) {
 // Add adds data to the data array. The data can be stored inline or
 // appended to a single storage
 func (da *dataArray) add(name string, n int, data interface{}) error {
+	// ensure no duplicate fields are present
+	if da.contains(name) {
+		msg := "Array already contains field '%s' in fields: %q"
+		return fmt.Errorf(msg, name, da.fieldNames())
+	}
+
 	// encode data into payload
 	if da.encoder == nil {
 		return fmt.Errorf("Missing encoder. No format specified.")
@@ -181,4 +187,25 @@ func (da *dataArray) add(name string, n int, data interface{}) error {
 	da.appended.Data = append(da.appended.Data, bytes...)
 	da.Data = append(da.Data, arr)
 	return nil
+}
+
+// Contains returns true if the identifier `name` is already used in any
+// darrays already present in the data array.
+func (da *dataArray) contains(name string) bool {
+	for _, field := range da.fieldNames() {
+		if field == name {
+			return true
+		}
+	}
+	return false
+}
+
+// FieldNames provide all the field names in the current data array. Returns
+// an empty slice of string in case no names have been set.
+func (da *dataArray) fieldNames() []string {
+	names := []string{}
+	for _, a := range da.Data {
+		names = append(names, a.Name)
+	}
+	return names
 }
