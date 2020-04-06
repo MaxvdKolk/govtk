@@ -760,16 +760,24 @@ func splice(idx int, xyz []interface{}, z interface{}) []interface{} {
 // requires the extent of the data to deterime the expected (and required)
 // number of points. Both to allocate the expected result, as well as,
 // to allocate any zeros that need to be inserted.
-func interleave(extent bounds, xyz ...interface{}) (interface{}, error) {
-
-	np := extent.numPoints()
+func interleave(np, zero int, xyz ...interface{}) (interface{}, error) {
+	// ensure all components have equal length
+	n := make([]int, len(xyz))
+	for i, v := range xyz {
+		n[i] = reflect.ValueOf(v).Len()
+	}
+	for _, v := range n {
+		if v != np {
+			msg := "Unequal component lengths: exp: %d got: %v"
+			return nil, fmt.Errorf(msg, np, n)
+		}
+	}
 
 	switch xyz[0].(type) {
 	case []int:
-
 		if len(xyz) == 2 {
 			z := make([]int, np)
-			xyz = splice(extent.zeroDim(), xyz, z)
+			xyz = splice(zero, xyz, z)
 		}
 
 		res := make([]int, np*len(xyz))
@@ -784,10 +792,9 @@ func interleave(extent bounds, xyz ...interface{}) (interface{}, error) {
 		}
 		return res, nil
 	case []float64:
-
 		if len(xyz) == 2 {
 			z := make([]float64, np)
-			xyz = splice(extent.zeroDim(), xyz, z)
+			xyz = splice(zero, xyz, z)
 		}
 
 		res := make([]float64, np*len(xyz))

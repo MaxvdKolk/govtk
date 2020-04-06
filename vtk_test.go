@@ -390,6 +390,30 @@ func TestImage(t *testing.T) {
 	//t.Error()
 }
 
+func TestInterleave(t *testing.T) {
+	x := []int{1, 4, 7}
+	y := []int{2, 5, 8}
+	z := []int{3, 6, 9}
+	res := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	tmp, err := interleave(3, 0, x, y, z)
+	if err != nil {
+		t.Error(err)
+	}
+	xyz := tmp.([]int)
+	for i, _ := range res {
+		if res[i] != xyz[i] {
+			msg := "Not equal after interleaving: exp %v, got %v"
+			t.Errorf(msg, res, xyz)
+		}
+	}
+
+	// ensure we get an error for unequal lengths
+	if _, err := interleave(3, 0, append(x, 1), y, z); err == nil {
+		t.Error("Interleave with unequal arrays should return error")
+	}
+}
+
 func TestUnstructured(t *testing.T) {
 	coords := []float64{
 		0.0, 0.0, 0.0,
