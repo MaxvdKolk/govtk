@@ -19,6 +19,46 @@ func TestExtentPresent(t *testing.T) {
 	}
 }
 
+// test if we can push different data types towards fielddata fields.
+func TestFieldData(t *testing.T) {
+	// todo this test is quite verbose, can be made better
+	img, err := Image(WholeExtent(0, 1, 0, 1, 0, 1))
+	if err != nil {
+		t.Error(err)
+	}
+	name := "field"
+	if err := img.Add(FieldData(name, []float64{1.0})); err != nil {
+		t.Error(err)
+	}
+	if err := img.Add(FieldData(name, []float64{1.0})); err == nil {
+		t.Error("Duplicate FieldData fields should return error")
+	}
+	if err := img.Add(FieldData("int", 1)); err != nil {
+		t.Errorf("Cannot write int: %v", err)
+	}
+	if err := img.Add(FieldData("int32", int32(1))); err != nil {
+		t.Error("Cannot write int32")
+	}
+	if err := img.Add(FieldData("float32", float32(1))); err != nil {
+		t.Error("Cannot write float32")
+	}
+	if err := img.Add(FieldData("float64", float64(1))); err != nil {
+		t.Error("Cannot write float64")
+	}
+	if err := img.Add(FieldData("[]float64", []float64{1, 2, 3})); err != nil {
+		t.Error("Cannot write []float64")
+	}
+	if err := img.Add(FieldData("[]int32", []int32{1, 2, 3})); err != nil {
+		t.Error("Cannot write []int32")
+	}
+	if err := img.Add(FieldData("[]int", []int{1, 2, 3})); err != nil {
+		t.Error("Cannot write []int")
+	}
+	if err := img.Save("fd.vti"); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestPreventDuplicateFieldNames(t *testing.T) {
 	vtu, err := Image(WholeExtent(0, 1, 0, 1, 0, 1))
 	if err != nil {

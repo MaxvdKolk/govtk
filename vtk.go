@@ -496,14 +496,27 @@ func (h *Header) mapLabelToType(labels []int) ([]int, error) {
 	return types, nil
 }
 
-func FieldData(name string, data []float64) Option {
+func FieldData(name string, data interface{}) Option {
 	return func(h *Header) error {
 
 		if h.Grid.Data == nil {
 			h.Grid.Data = h.NewFieldArray()
 		}
 
-		return h.Grid.Data.add(name, len(data), data)
+		switch data.(type) {
+		case int:
+			tmp, ok := data.(int)
+			if !ok {
+				msg := "Cannot cast %v to int"
+				return fmt.Errorf(msg, data)
+			}
+			return h.Grid.Data.add(name, 1, int64(tmp))
+		case bool, int32, int64, float64, float32:
+			return h.Grid.Data.add(name, 1, data)
+		default:
+			n := reflect.ValueOf(data).Len()
+			return h.Grid.Data.add(name, n, data)
+		}
 	}
 }
 
