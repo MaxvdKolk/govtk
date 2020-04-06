@@ -78,6 +78,9 @@ mb.Close()
 ### Parallel files PVTK
 ```to be implemented```
 
+### Legacy format 
+Besides the various forms of the XML VTK formats, the libary also has (minimal) support for the simple legacy VTK formats. 
+
 ### Options and settings 
 
 ## Command-line tools 
@@ -85,3 +88,4 @@ mb.Close()
 
 ## References 
 https://vtk.org/Wiki/VTK_XML_Formats
+https://vtk.org/wp-content/uploads/2015/04/file-formats.pdf
