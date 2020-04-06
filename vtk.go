@@ -286,7 +286,10 @@ func (h *Header) structuredPoints(xyz ...interface{}) error {
 		return fmt.Errorf(msg, len(xyz))
 	}
 
-	lp := h.lastPiece()
+	lp, err := h.lastPiece()
+	if err != nil {
+		return err
+	}
 	if lp.Points != nil {
 		return fmt.Errorf("Points allready set")
 	}
@@ -324,7 +327,10 @@ func (h *Header) unstructuredPoints(xyz ...interface{}) error {
 		return fmt.Errorf(msg, len(xyz))
 	}
 
-	lp := h.lastPiece()
+	lp, err := h.lastPiece()
+	if err != nil {
+		return err
+	}
 	if lp.Points != nil {
 		return fmt.Errorf("Points allready set")
 	}
@@ -372,7 +378,10 @@ func Piece(opts ...func(p *partition) error) Option {
 func Data(name string, data interface{}) Option {
 	return func(h *Header) error {
 
-		lp := h.lastPiece()
+		lp, err := h.lastPiece()
+		if err != nil {
+			return err
+		}
 
 		if lp.NumberOfPoints == lp.NumberOfCells {
 			return fmt.Errorf("num cells == num points, cannot infer")
@@ -415,7 +424,10 @@ func CellData(name string, data interface{}) Option {
 // corresponding VTK element types. This map is set by SetLabelType().
 func Cells(conn, offset, labels []int) Option {
 	return func(h *Header) error {
-		lp := h.lastPiece()
+		lp, err := h.lastPiece()
+		if err != nil {
+			return err
+		}
 
 		if lp.Cells != nil {
 			return fmt.Errorf("Connectivity already set")
@@ -513,7 +525,10 @@ func (h *Header) coordinates(xyz ...interface{}) error {
 		return fmt.Errorf(msg, len(xyz))
 	}
 
-	lp := h.lastPiece()
+	lp, err := h.lastPiece()
+	if err != nil {
+		return err
+	}
 	if lp.Coordinates != nil {
 		return fmt.Errorf("Coordinates already set")
 	}
@@ -690,6 +705,16 @@ func (h *Header) Save(filename string) error {
 // The header is omitted for formatRaw as this is actually not compliant with
 // the xml standard.
 func (h *Header) Write(w io.Writer) error {
+
+	// check essential properties that might break the format
+	switch h.Type {
+	case imageData:
+		if h.Grid.Extent == (bounds{}) {
+			msg := "%s has no or empty extent %#v"
+			return fmt.Errorf(msg, h.Type, h.Grid.Extent)
+		}
+	}
+
 	if h.format != formatRaw {
 		_, err := w.Write([]byte(xml.Header))
 		if err != nil {
@@ -702,7 +727,10 @@ func (h *Header) Write(w io.Writer) error {
 // pointData is the internal routine to write data along points. The function
 // returns an error if the data does not distribute over the number of points.
 func (h *Header) pointData(name string, data interface{}) error {
-	lp := h.lastPiece()
+	lp, err := h.lastPiece()
+	if err != nil {
+		return err
+	}
 
 	if lp.PointData == nil {
 		lp.PointData = h.NewArray()
@@ -720,7 +748,10 @@ func (h *Header) pointData(name string, data interface{}) error {
 // cellData is the internal routine to write data along cells. The function
 // returns an error if the data does not distribute over the number of cells.
 func (h *Header) cellData(name string, data interface{}) error {
-	lp := h.lastPiece()
+	lp, err := h.lastPiece()
+	if err != nil {
+		return err
+	}
 
 	if lp.CellData == nil {
 		lp.CellData = h.NewArray()
@@ -737,19 +768,22 @@ func (h *Header) cellData(name string, data interface{}) error {
 }
 
 // Returns pointer to last piece in the mesh
-func (h *Header) lastPiece() *partition {
-
+func (h *Header) lastPiece() (*partition, error) {
 	if len(h.Grid.Pieces) == 0 {
 		switch h.Type {
 		case imageData, rectilinearGrid, structuredGrid:
 			b := h.Grid.Extent
+			if b == (bounds{}) {
+				msg := "%s has no or empty extent: %#v"
+				return nil, fmt.Errorf(msg, h.Type, b)
+			}
 			h.Add(Piece(Extent(b[0], b[1], b[2], b[3], b[4], b[5])))
 		default:
 			h.Add(Piece())
 		}
 	}
 
-	return &h.Grid.Pieces[len(h.Grid.Pieces)-1]
+	return &h.Grid.Pieces[len(h.Grid.Pieces)-1], nil
 }
 
 // Splice inserts the empty interface z in the slice of empty interfaces

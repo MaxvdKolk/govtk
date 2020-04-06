@@ -6,6 +6,19 @@ import (
 	"testing"
 )
 
+func TestExtentPresent(t *testing.T) {
+	img, err := Image()
+	if err != nil {
+		t.Error(err)
+	}
+	if err := img.Save("test.vti"); err == nil {
+		t.Error("Saving without providing extent should fail")
+	}
+	if err := img.Add(Data("test", []float64{1, 2, 3})); err == nil {
+		t.Error("Adding data without extent should fail")
+	}
+}
+
 func TestPreventDuplicateFieldNames(t *testing.T) {
 	vtu, err := Image(WholeExtent(0, 1, 0, 1, 0, 1))
 	if err != nil {
