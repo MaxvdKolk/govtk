@@ -281,37 +281,37 @@ func Points(xyz ...interface{}) Option {
 // three coordinates, e.g. x and z. In this case, the missing set of
 // coordinates are filled with zeros.
 func (h *Header) structuredPoints(xyz ...interface{}) error {
+	if len(xyz) > 3 {
+		msg := "Point data should be 1,2, or 3 dimensional, got: %d"
+		return fmt.Errorf(msg, len(xyz))
+	}
+
 	lp := h.lastPiece()
 	if lp.Points != nil {
 		return fmt.Errorf("Points allready set")
 	}
 	lp.Points = h.NewArray()
 
-	// x0y0z0 ... xny0z0 x0y1z0 ... etc (todo clarify)
+	// Flat data vector as (x0,y0,z0,x1,y1,z1...xn,yn,zn).
 	if len(xyz) == 1 {
-		l := reflect.ValueOf(xyz[0]).Len() / lp.NumberOfPoints
-		return lp.Points.add("Points", l, xyz[0])
-	}
-
-	// when only two out of three dimensions are given, we need
-	// to insert zeros for the third dimension to satisfy the
-	// structuredgrid format
-	if len(xyz) == 2 {
-		dat, err := interleave(h.Grid.Extent, xyz...)
-		if err != nil {
-			return err
+		n := reflect.ValueOf(xyz[0]).Len()
+		if n != 3*lp.NumberOfPoints {
+			msg := "Wrong number of values: exp: %d, got: %d"
+			return fmt.Errorf(msg, 3*lp.NumberOfPoints, n)
 		}
-		l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
-		return lp.Points.add("Points", l, dat)
+		return lp.Points.add("Points", 3, xyz[0])
 	}
 
-	// three dimensional data
-	dat, err := interleave(h.Grid.Extent, xyz...)
+	// Interleave (x,y) or (x,y,z) data. For three-dimensional data it
+	// interleaves x, y, z data directly, while for two-dimensional data
+	// the empty dimension is filled with zeros. The empty dimension is
+	// obtained by the domains extent.
+	b := h.Grid.Extent
+	dat, err := interleave(b.numPoints(), b.zeroDim(), xyz...)
 	if err != nil {
 		return err
 	}
-	l := reflect.ValueOf(dat).Len() / lp.NumberOfPoints
-	return lp.Points.add("Points", l, dat)
+	return lp.Points.add("Points", 3, dat)
 }
 
 // unstructuredPoints adds a set of coordinates to the unstructured grid.
@@ -319,21 +319,37 @@ func (h *Header) structuredPoints(xyz ...interface{}) error {
 // points need to be inferred from the data, there is no extent that we
 // can refer to
 func (h *Header) unstructuredPoints(xyz ...interface{}) error {
+	if len(xyz) > 3 {
+		msg := "Point data should be 1,2, or 3 dimensional, got: %d"
+		return fmt.Errorf(msg, len(xyz))
+	}
+
 	lp := h.lastPiece()
 	if lp.Points != nil {
 		return fmt.Errorf("Points allready set")
 	}
 	lp.Points = h.NewArray()
 
-	// todo fix lengths for 2d/3d
-	// todo add functionality for separate x, y, z values
-
+	// Flat data vector as (x0,y0,z0,x1,y1,z1...xn,yn,zn).
 	if len(xyz) == 1 {
-		lp.NumberOfPoints = reflect.ValueOf(xyz[0]).Len() / 3
+		n := reflect.ValueOf(xyz[0]).Len()
+		if n%3 > 0 {
+			msg := "Length: %d does not distribute over 3 dimension"
+			return fmt.Errorf(msg, n)
+		}
+		lp.NumberOfPoints = n / 3
 		return lp.Points.add("Points", 3, xyz[0])
 	}
 
-	return nil
+	// Interleave (x,y,) or (x,y,z) data. For (x,y,) a zero is inserted
+	// for the third dimension. Note: cannot distinguish the empty
+	// dimension, therefore will fill x, y, and splice z with zeros.
+	lp.NumberOfPoints = reflect.ValueOf(xyz[0]).Len()
+	dat, err := interleave(lp.NumberOfPoints, len(xyz), xyz...)
+	if err != nil {
+		return err
+	}
+	return lp.Points.add("Points", 3, dat)
 }
 
 func Piece(opts ...func(p *partition) error) Option {
