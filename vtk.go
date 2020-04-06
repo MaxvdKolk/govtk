@@ -599,6 +599,15 @@ func Raw() Option {
 	}
 }
 
+// Legacy enables legacy output. The file will be written to .vtk in simple
+// legacy format and not the XML VTK format.
+func Legacy() Option {
+	return func(h *Header) error {
+		h.legacy = true
+		return nil
+	}
+}
+
 func Appended() Option {
 	return func(h *Header) error {
 		if h.format == formatAscii {
@@ -718,6 +727,9 @@ func (h *Header) Save(filename string) error {
 // The header is omitted for formatRaw as this is actually not compliant with
 // the xml standard.
 func (h *Header) Write(w io.Writer) error {
+	if h.legacy {
+		return LegacyWriter(h, w)
+	}
 
 	// check essential properties that might break the format
 	switch h.Type {
