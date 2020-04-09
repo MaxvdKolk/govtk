@@ -1,5 +1,6 @@
 # generate vtk related files
 *.vt* 
+*.pvd
 
 # coverage .out
 *.out 
