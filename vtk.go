@@ -744,6 +744,14 @@ func (h *Header) Write(w io.Writer) error {
 	return xml.NewEncoder(w).Encode(h)
 }
 
+// Encodes the towards the WriteCloser and closes the stream after encoding.
+func (h *Header) WriteClose(w io.WriteCloser) error {
+	if err := h.Write(w); err != nil {
+		return err
+	}
+	return w.Close()
+}
+
 // pointData is the internal routine to write data along points. The function
 // returns an error if the data does not distribute over the number of points.
 func (h *Header) pointData(name string, data interface{}) error {
