@@ -1,10 +1,12 @@
 package govtk
 
 import (
+	"bufio"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 )
 
@@ -705,12 +707,17 @@ func Unstructured(opts ...Option) (*Header, error) {
 
 // Save opens a file and writes the xml
 func (h *Header) Save(filename string) error {
+	// append extension if filename has none
+	if filepath.Ext(filename) == "" {
+		filename += h.FileExtension()
+	}
+
 	f, err := os.Create(filename)
 	defer f.Close()
 	if err != nil {
 		return err
 	}
-	return h.Write(f)
+	return h.Write(bufio.NewWriter(f))
 }
 
 // Encodes the xml towards a io.Writer. Writes a xml header (i.e.
@@ -778,6 +785,20 @@ func (h *Header) cellData(name string, data interface{}) error {
 
 	n /= lp.NumberOfCells
 	return lp.CellData.add(name, n, data)
+}
+
+func (h *Header) FileExtension() string {
+	switch h.Type {
+	case imageData:
+		return "vti"
+	case rectilinearGrid:
+		return "vtu"
+	case structuredGrid:
+		return "vts"
+	case unstructuredGrid:
+		return "vtu"
+	}
+	return ""
 }
 
 // Returns pointer to last piece in the mesh
