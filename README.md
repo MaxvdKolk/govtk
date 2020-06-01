@@ -4,7 +4,8 @@ A Go package to write data to VTK XML files.
 [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](https://godoc.org/github.com/maxvdkolk/govtk)
 ![Go](https://github.com/MaxvdKolk/govtk/workflows/Go/badge.svg)
 
-*Note: still work in progress. Not all features are finished / implemented* 
+*Note: not all feature are implemented yet. Basic VTK XML files and
+ParaViewData (PVD) collections are availabe.*
 
 The package supports a variety of VTK XML styles to be written, 
 i.e. image data (.vti), rectilinear grids (.vtr), structured grids (.vts), and unstructured grids (*.vtu). 
@@ -169,6 +170,6 @@ go get -u -v github.com/maxvdkolk/govtk/...
 ```
 
 ## References 
-https://vtk.org/Wiki/VTK_XML_Formats
-https://vtk.org/wp-content/uploads/2015/04/file-formats.pdf
-https://github.com/jipolanco/WriteVTK.jl
+- https://vtk.org/Wiki/VTK_XML_Formats
+- https://vtk.org/wp-content/uploads/2015/04/file-formats.pdf
+- https://github.com/jipolanco/WriteVTK.jl
